@@ -1,0 +1,32 @@
+           CONTRAT DE LICENCE UTILISATEUR FINAL (CLUF) - DANAYA+ ELITE
+           ---------------------------------------------------------
+           ÉDITION SPÉCIALE : CONFORMITÉ RÉPUBLIQUE DU MALI
+
+PRÉAMBULE
+Le présent contrat est un accord légal entre vous (Personne Physique ou Morale) et Danaya+ Software. En installant ce logiciel, vous acceptez d'être lié par les termes de cette licence régie par les lois en vigueur en République du Mali.
+
+1. PROPRIÉTÉ INTELLECTUELLE & COPYRIGHT
+Ce logiciel est protégé par la Loi N°08-024 du 23 juillet 2008 relative au droit d'auteur et aux droits voisins au Mali. Danaya+ Software conserve l'intégralité des droits de propriété intellectuelle sur le code source, les algorithmes de l'Intelligence Titan, les interfaces graphiques et la documentation. Toute reproduction, décompilation (reverse-engineering) ou distribution non autorisée est passible de poursuites pénales conformément au Code Pénal Malien.
+
+2. PROTECTION DES DONNÉES (CONFORMITÉ APDP)
+Conformément à la Loi N° 2013-015 du 21 Mai 2013 portant protection des données à caractère personnel en République du Mali :
+- L'utilisateur est désigné comme "Responsable du Traitement" des données de ses clients.
+- Danaya+ est un logiciel "Offline-First" : aucune donnée n'est collectée, stockée ou transmise à Danaya+ Software.
+- L'utilisateur s'engage à effectuer les déclarations nécessaires auprès de l'Autorité de Protection des Données à caractère Personnel (APDP) si ses activités l'exigent.
+
+3. CLAUSE DE SOUVERAINETÉ & RESPONSABILITÉ MATÉRIELLE
+L'utilisateur reconnaît que Danaya+ fonctionne de manière autonome sur son matériel. En conséquence :
+- Danaya+ Software décline toute responsabilité en cas de perte de données liée à un crash matériel, un vol, un incendie ou une infection par virus informatique.
+- L'utilisateur assume l'entière responsabilité de la mise en place d'une stratégie de sauvegarde (Back-up) sur des supports externes (Clef USB, Disque Externe, Cloud personnel).
+
+4. LICENCE D'EXPLOITATION COMMERCIALE
+La présente licence vous accorde le droit d'utiliser le logiciel pour la gestion d'un (01) seul point de vente. L'usage de la même licence sur plusieurs sites sans autorisation constitue une fraude commerciale au sens de l'Acte Uniforme de l'OHADA relatif au droit commercial général.
+
+5. GARANTIE & SUPPORT
+Le logiciel est fourni "en l'état". Bien que l'Intelligence Titan v1 intègre des capacités d'auto-diagnostic, Danaya+ Software ne garantit pas une absence totale d'erreurs. Le support technique est limité aux défauts de fabrication du logiciel et ne couvre pas la maintenance du système Windows ou des périphériques tiers (imprimantes, scanners).
+
+6. JURIDICTION ET DROIT APPLICABLE
+Tout litige relatif à l'interprétation ou à l'exécution du présent contrat sera de la compétence exclusive des Tribunaux de Commerce de Bamako, République du Mali.
+
+(c) 2026 Danaya+ Software. Marque déposée. 
+"La confiance est le socle de votre gestion."

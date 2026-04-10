@@ -1,0 +1,18 @@
+           POLITIQUE DE CONFIDENTIALITÉ DANAYA+
+           ------------------------------------
+
+1. COLLECTE DES DONNÉES : Danaya+ ne collecte AUCUNE donnée personnelle 
+   sur ses serveurs. L'application fonctionne à 100% en mode local 
+   (hors-ligne).
+
+2. STOCKAGE : Toutes vos données (ventes, clients, stocks) sont stockées 
+   exclusivement dans une base de données SQLite sur votre ordinateur.
+
+3. PARTAGE : Aucune donnée n'est partagée avec des tiers. Vous avez le 
+   contrôle total sur l'exportation de vos rapports.
+
+4. SÉCURITÉ : La sécurité des données dépend de la protection de votre 
+   appareil Windows. Nous recommandons l'usage d'un mot de passe de session 
+   robuste.
+
+(c) 2026 Danaya+ Elite Edition. Respect de la vie privée garanti.

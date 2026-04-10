@@ -1,0 +1,27 @@
+{
+  "java.autobuild.enabled": false,
+  "java.project.sourcePaths": [],
+  "gradle.nestedProjects": false,
+  "files.watcherExclude": {
+    "**/android/**": true,
+    "**/build/**": true,
+    "**/.dart_tool/**": true,
+    "**/ios/**": true,
+    "**/windows/flutter/**": true,
+    "**/.gradle/**": true,
+    "**/node_modules/**": true
+  },
+  "files.exclude": {
+    "**/.gradle": true,
+    "**/build": true,
+    "**/.dart_tool": true
+  },
+  "search.exclude": {
+    "**/android/**": true,
+    "**/build/**": true,
+    "**/.dart_tool/**": true,
+    "**/.gradle/**": true
+  },
+  "dart.analyzerSshPort": null,
+  "editor.formatOnSave": true
+}
