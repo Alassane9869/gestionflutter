@@ -385,8 +385,8 @@ class _ServerStatusBadge extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final status = ref.watch(isServerRunningProvider);
     final c = DashColors.of(context);
-    Color color;
-    String label;
+    Color color = c.textSecondary;
+    String label = "UNKNOWN";
     bool pulsing = false;
 
     switch (status) {
@@ -406,6 +406,11 @@ class _ServerStatusBadge extends ConsumerWidget {
         pulsing = false;
         break;
       case ServerStatus.stopped:
+        color = c.textMuted;
+        label = "OFFLINE";
+        pulsing = false;
+        break;
+      default:
         color = c.textMuted;
         label = "OFFLINE";
         pulsing = false;

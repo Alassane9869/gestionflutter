@@ -58,3 +58,10 @@ app.*.map.json
 *.iss
 *.exe
 analyze.txt
+
+# Security and Sensitive Configs
+lib/core/config/security_config.dart
+*.db
+*.sqlite
+*.env
+auth_secrets.json

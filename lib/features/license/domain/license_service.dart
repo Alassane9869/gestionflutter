@@ -6,13 +6,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:io';
 
+import 'package:danaya_plus/core/config/security_config.dart';
+
 final licenseServiceProvider = Provider<LicenseService>((ref) => LicenseService());
 
 class LicenseService {
   static const String _licenseKeyPref = 'activation_key';
   static const String _activationDatePref = 'activation_date';
   // ignore: constant_identifier_names
-  static const String _SECRET_SALT = 'DANAYA_PLUS_ULTRA_SECURE_2024_SALT';
+  static const String _SECRET_SALT = SecurityConfig.licenseSalt;
 
   // Obtenir le Hardware ID unique (HID)
   Future<String> getHardwareId() async {

@@ -34,6 +34,9 @@ import 'package:path_provider/path_provider.dart';
 // * **WebSocket Bridge**: Bi-directional, sub-100ms lag for customer engagement.
 // * **Encrypted Sync Gate**: High-security middleware validating each packet with a hardware-derived key.
 
+// Provider pour l'état du serveur (Public pour l'UI)
+enum ServerStatus { stopped, starting, running, error }
+
 final isServerRunningProvider = NotifierProvider<ServerStatusNotifier, ServerStatus>(() => ServerStatusNotifier());
 
 class ServerStatusNotifier extends Notifier<ServerStatus> {

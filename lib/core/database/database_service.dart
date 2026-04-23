@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'package:danaya_plus/core/database/migrations/migration_runner.dart';
 import 'package:danaya_plus/core/database/schema_healing_service.dart';
+import 'package:danaya_plus/core/config/security_config.dart';
 
 final databaseServiceProvider = Provider<DatabaseService>((ref) {
   return DatabaseService();
@@ -233,7 +234,7 @@ class DatabaseService {
     }
 
     // Dériver une clé SHA-256 stable à partir de l'ID matériel
-    final bytes = utf8.encode("${deviceId}danaya_secure_salt_2024");
+    final bytes = utf8.encode("${deviceId}${SecurityConfig.databaseSalt}");
     return sha256.convert(bytes).toString();
   }
 
@@ -528,7 +529,7 @@ class DatabaseService {
     // Insertion de l'Admin par défaut (PIN: 1234 + pepper)
     // Le hash est calculé dynamiquement pour éviter les erreurs de transcription
     final defaultAdminHash = sha256
-        .convert(utf8.encode('1234danaya_secure_pepper_2024_v1'))
+        .convert(utf8.encode(SecurityConfig.initialAdminPepper))
         .toString();
     await db.insert('users', {
       'id': 'sysadmin',

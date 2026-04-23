@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:danaya_plus/features/auth/data/auth_repository.dart';
+import 'package:danaya_plus/core/config/security_config.dart';
 import 'package:danaya_plus/core/services/sound_service.dart';
 import 'package:danaya_plus/features/auth/domain/models/user.dart';
 import 'package:danaya_plus/core/database/database_service.dart';
@@ -17,7 +18,7 @@ class AuthService extends AsyncNotifier<User?> {
   late final AuthRepository _repository;
   // SECURITY NOTE (#5): Ce pepper devrait idéalement être stocké dans un secure storage
   // natif (Keychain/Keystore) au lieu d'être hardcodé. Acceptable pour un logiciel offline.
-  static const String _pepper = "danaya_secure_pepper_2024_v1";
+  static const String _pepper = SecurityConfig.authPepper;
 
   // Rate limiting (#6)
   int _failedAttempts = 0;
