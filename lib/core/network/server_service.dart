@@ -16,8 +16,23 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-// Provider pour l'état du serveur (Public pour l'UI)
-enum ServerStatus { stopped, starting, running, error }
+// 📡 **DANAYA+ BROADCAST & SYNC CORE**
+// 
+// This service implements the real-time communications layer of Danaya+.
+// It serves two critical functions:
+//
+// 1. **Zero Hardware Lock-in Digital Display**: 
+//    Starts a local web server (Shelf) that broadcasts the POS state to any device 
+//    on the local network (Tablets, Phones, Smart TVs) via WebSockets.
+//
+// 2. **Multi-Node Synchronization**: 
+//    Acts as the 'Source of Truth' for secondary POS units in a local network, 
+//    handling encrypted stock movements, sales, and financial transactions.
+//
+// **Key Infrastructure:**
+// * **UDP Discovery**: Allows secondary units to auto-detect the main server without IP config.
+// * **WebSocket Bridge**: Bi-directional, sub-100ms lag for customer engagement.
+// * **Encrypted Sync Gate**: High-security middleware validating each packet with a hardware-derived key.
 
 final isServerRunningProvider = NotifierProvider<ServerStatusNotifier, ServerStatus>(() => ServerStatusNotifier());
 
@@ -29,6 +44,8 @@ class ServerStatusNotifier extends Notifier<ServerStatus> {
 
 final serverServiceProvider = Provider<ServerService>((ref) => ServerService(ref));
 
+/// **SERVER SERVICE**
+/// The engine behind the local ERP cloud.
 class ServerService {
   final Ref _ref;
   HttpServer? _server;

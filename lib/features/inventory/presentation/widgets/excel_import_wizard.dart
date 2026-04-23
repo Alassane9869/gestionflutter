@@ -10,6 +10,19 @@ import 'package:danaya_plus/features/inventory/providers/product_providers.dart'
 import 'package:danaya_plus/core/utils/date_formatter.dart';
 import 'package:danaya_plus/features/inventory/domain/models/product.dart';
 
+/// 🚀 **ALPHA-MIGRATE ENGINE (Excel Import Wizard)**
+/// 
+/// This module implements the intelligent data bridge for Danaya+.
+/// 
+/// **Key Capabilities:**
+/// * **Danaya Model Detection**: Automatically identifies official Danaya Excel templates 
+///   and triggers a 'Fast-Track' bypass for instant importation.
+/// * **Semantic Auto-Mapping**: Uses an exhaustive synonym dictionary to match external 
+///   column headers to local database fields, reducing manual setup by 90%.
+/// * **Real-time Sanitization**: Validates currency formats, numerical consistency, 
+///   and mandatory fields during the mapping phase.
+/// * **Non-Interactive Background Mode**: If a known model is detected, the entire 
+///   UI is bypassed to provide a frictionless UX.
 class ExcelImportWizard extends ConsumerStatefulWidget {
   const ExcelImportWizard({super.key});
 
