@@ -275,10 +275,13 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                                   barTouchData: BarTouchData(
                                     touchTooltipData: BarTouchTooltipData(
                                       getTooltipColor: (_) => isDark ? const Color(0xFF2D3039) : Colors.white,
-                                      getTooltipItem: (group, groupIndex, rod, rodIndex) => BarTooltipItem(
-                                        "${chartData[group.x.toInt()].label}\n${ref.fmt(rod.toY)}",
-                                        TextStyle(color: accent, fontWeight: FontWeight.w800, fontSize: 12),
-                                      ),
+                                      getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                                        final idx = group.x.toInt();
+                                        return BarTooltipItem(
+                                          idx < 0 || idx >= chartData.length ? "" : "${chartData[idx].label}\n${ref.fmt(rod.toY)}",
+                                          TextStyle(color: accent, fontWeight: FontWeight.w800, fontSize: 12),
+                                        );
+                                      },
                                     ),
                                   ),
                                   titlesData: FlTitlesData(
@@ -290,6 +293,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                                           final idx = value.toInt();
                                           // Show every label if <= 10, otherwise every 2nd
                                           if (chartData.length > 10 && idx % 2 != 0) return const SizedBox.shrink();
+                                          if (idx < 0 || idx >= chartData.length) return const SizedBox.shrink();
                                           return Padding(
                                             padding: const EdgeInsets.only(top: 8),
                                             child: Text(chartData[idx].label, style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontWeight: FontWeight.w600)),

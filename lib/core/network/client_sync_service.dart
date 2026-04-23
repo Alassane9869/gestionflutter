@@ -32,7 +32,7 @@ class ClientSyncService {
 
   String _getBaseUrl() {
     final settings = _ref.read(shopSettingsProvider).value;
-    if (settings == null) return '';
+    if (settings == null || settings.serverIp.isEmpty) return '';
     return 'http://${settings.serverIp}:${settings.serverPort}';
   }
 

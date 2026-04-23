@@ -84,21 +84,22 @@ class SystemMaintenanceSection extends ConsumerWidget {
                       children: [
                         PremiumSettingsWidgets.buildIconBadge(icon: FluentIcons.shield_lock_16_regular, color: c.amber),
                         const SizedBox(width: 10),
-                        const Text("SÉCURITÉ", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 0.5)),
+                        const Text("SÉCURITÉ", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 0.5)),
                         const Spacer(),
                         Transform.scale(
                           scale: 0.8,
                           child: Switch.adaptive(
                             value: isAutoLockEnabled, 
                             onChanged: onAutoLockEnabledChanged,
-                            activeColor: c.amber,
+                            activeThumbColor: c.amber,
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 12),
-                    const Text("Auto-Verrou", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                    Text("Verrouille la session après une période d'inactivité.", style: TextStyle(color: c.textSecondary, fontSize: 9)),
+                    const Text("Auto-Verrou", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    const SizedBox(height: 4),
+                    Text("Verrouille la session après une période d'inactivité.", style: TextStyle(color: c.textSecondary, fontSize: 13)),
                     if (isAutoLockEnabled) ...[
                       const SizedBox(height: 12),
                       _buildMinutesField(c),
@@ -142,13 +143,13 @@ class SystemMaintenanceSection extends ConsumerWidget {
             controller: autoLockMinutesCtrl,
             keyboardType: TextInputType.number,
             onChanged: (_) => onSaveDebounced(),
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             decoration: InputDecoration(
               isDense: true,
               contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               suffixText: "min",
-              suffixStyle: const TextStyle(fontSize: 9),
+              suffixStyle: const TextStyle(fontSize: 13),
             ),
           ),
         ),
@@ -168,7 +169,7 @@ class SystemMaintenanceSection extends ConsumerWidget {
         children: [
           Icon(FluentIcons.person_support_20_regular, color: c.blue, size: 16),
           const SizedBox(width: 12),
-          const Text("ASSISTANCE TECHNIQUE", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 0.5)),
+          const Text("ASSISTANCE TECHNIQUE", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 0.5)),
           const Spacer(),
           _buildMiniSupportBtn(c, "Guide d'utilisation", FluentIcons.book_question_mark_20_regular, () => onViewTos()),
           const SizedBox(width: 12),
@@ -178,7 +179,7 @@ class SystemMaintenanceSection extends ConsumerWidget {
               builder: (context) => AlertDialog(
                 backgroundColor: c.surface,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                title: const Text("SUPPORT TECHNIQUE", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1.0)),
+                title: const Text("SUPPORT TECHNIQUE", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1.0)),
                 content: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -211,9 +212,9 @@ class SystemMaintenanceSection extends ConsumerWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: TextStyle(fontSize: 9, color: c.textMuted, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
+              Text(label, style: TextStyle(fontSize: 13, color: c.textMuted, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
               const SizedBox(height: 2),
-              SelectableText(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: c.textPrimary)),
+              SelectableText(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: c.textPrimary)),
             ],
           ),
         ],
@@ -233,9 +234,9 @@ class SystemMaintenanceSection extends ConsumerWidget {
         ),
         child: Row(
           children: [
-            Icon(icon, size: 16, color: c.blue),
+            Icon(icon, size: 20, color: c.blue),
             const SizedBox(width: 6),
-            Text(label, style: TextStyle(color: c.blue, fontWeight: FontWeight.w800, fontSize: 10)),
+            Text(label, style: TextStyle(color: c.blue, fontWeight: FontWeight.w800, fontSize: 14)),
           ],
         ),
       ),

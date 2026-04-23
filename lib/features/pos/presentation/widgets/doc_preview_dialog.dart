@@ -241,37 +241,48 @@ class _DocPreviewDialogState extends ConsumerState<DocPreviewDialog> {
               ),
             ),
             
-            // APERÇU PDF DENSE
+            // APERÇU PDF DENSE & STABILISÉ
             Expanded(
               child: Container(
                 color: isDark ? const Color(0xFF1E1E1E) : Colors.grey.shade100,
                 child: currentFuture == null 
                   ? const Center(child: Text("Document non disponible", style: TextStyle(fontSize: 12)))
-                  : FutureBuilder<pw.Document>(
-                      key: ValueKey(_showTicket), 
-                      future: currentFuture,
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(child: CircularProgressIndicator());
-                        }
-                        if (snapshot.hasError) {
-                          return Center(child: Text("Erreur : ${snapshot.error}", style: const TextStyle(color: Colors.red, fontSize: 12)));
-                        }
-                        
-                        return PdfPreview(
-                          build: (format) => snapshot.data!.save(),
-                          allowPrinting: false, // Bouton dans toolbar
-                          allowSharing: false,
-                          canChangePageFormat: false,
-                          canChangeOrientation: false,
-                          canDebug: false,
-                          useActions: false, // Pas d'actions standards PDF
-                          pdfFileName: currentFileName,
-                          dpi: 200,
-                          maxPageWidth: _showTicket ? 400 : 800,
-                          loadingWidget: const Center(child: Text("Génération...", style: TextStyle(fontSize: 10))),
-                        );
-                      },
+                  : RepaintBoundary(
+                      child: FutureBuilder<pw.Document>(
+                        key: ValueKey("${_showTicket}_$currentFileName"), 
+                        future: currentFuture,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const CircularProgressIndicator(strokeWidth: 2),
+                                  const SizedBox(height: 12),
+                                  Text("GÉNÉRATION DU PDF...", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: theme.colorScheme.primary)),
+                                ],
+                              ),
+                            );
+                          }
+                          if (snapshot.hasError) {
+                            return Center(child: Text("Erreur : ${snapshot.error}", style: const TextStyle(color: Colors.red, fontSize: 12)));
+                          }
+                          
+                          return PdfPreview(
+                            build: (format) => snapshot.data!.save(),
+                            allowPrinting: false,
+                            allowSharing: false,
+                            canChangePageFormat: false,
+                            canChangeOrientation: false,
+                            canDebug: false,
+                            useActions: false,
+                            pdfFileName: currentFileName,
+                            dpi: 200,
+                            maxPageWidth: _showTicket ? 380 : 800,
+                            loadingWidget: const SizedBox.shrink(), // On utilise notre propre loader
+                          );
+                        },
+                      ),
                     ),
               ),
             ),

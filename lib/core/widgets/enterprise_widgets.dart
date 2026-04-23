@@ -589,6 +589,7 @@ class EnterpriseWidgets {
     String? tooltip,
     FocusNode? focusNode,
     bool readOnly = false,
+    bool autofocus = false,
     VoidCallback? onTap,
     bool obscureText = false,
     Widget? suffix,
@@ -631,6 +632,7 @@ class EnterpriseWidgets {
         TextFormField(
           controller: ctrl,
           focusNode: focusNode,
+          autofocus: autofocus,
           maxLines: maxLines,
           validator: validator,
           keyboardType: keyboardType,
@@ -922,6 +924,146 @@ class EnterpriseWidgets {
                 ],
               ),
       ),
+    );
+  }
+
+  static void showPremiumToast(
+    BuildContext context, {
+    required String message,
+    IconData icon = FluentIcons.info_24_regular,
+    Color? color,
+    Duration duration = const Duration(seconds: 4),
+  }) {
+    final theme = Theme.of(context);
+    final primaryColor = color ?? theme.colorScheme.primary;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: Colors.white, size: 20),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: primaryColor,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        duration: duration,
+        elevation: 8,
+      ),
+    );
+  }
+
+  static Future<void> showPremiumErrorDialog(
+    BuildContext context, {
+    required String title,
+    required String message,
+    String? technicalDetails,
+  }) {
+    return showDialog(
+      context: context,
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 450),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(FluentIcons.warning_24_regular, color: Colors.red, size: 40),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: -0.5),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14, 
+                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                      height: 1.5,
+                    ),
+                  ),
+                  if (technicalDetails != null) ...[
+                    const SizedBox(height: 20),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.black.withValues(alpha: 0.2) : Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade300),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text("DÉTAILS TECHNIQUES", style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                          const SizedBox(height: 4),
+                          Text(
+                            technicalDetails,
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 11,
+                              color: isDark ? Colors.red.shade300 : Colors.red.shade700,
+                            ),
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text("COMPRIS"),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:danaya_plus/core/widgets/premium_settings_widgets.dart';
 import '../../../inventory/presentation/widgets/dashboard_widgets.dart'; 
 
@@ -34,107 +33,182 @@ class MultimediaSettingsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = DashColors.of(context);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        PremiumSettingsWidgets.buildSectionHeader(
-          context,
-          icon: FluentIcons.speaker_2_24_filled,
-          title: "Centre Multimédia & Audio",
-          subtitle: "Gérez l'ambiance sonore et les effets visuels de l'application",
-          color: c.blue,
-        ),
-        const SizedBox(height: 12),
-        PremiumSettingsWidgets.buildCard(
-          context,
-          child: Column(
-            children: [
-              PremiumSettingsWidgets.buildCompactSwitch(
-                context,
-                title: "Master Switch (Tous les sons)",
-                subtitle: "Activer ou désactiver globalement l'ambiance sonore",
-                value: enableSounds,
-                onChanged: (v) { onEnableSoundsChanged(v); onSaveDebounced(); },
-                activeColor: c.blue,
-                icon: FluentIcons.speaker_2_20_regular,
-              ),
-              const Divider(),
-              _buildSoundSwitchRowWithTest(
-                c,
-                title: "Sons de l'Application (POS)",
-                sub: "Bips de scan, alertes stock et sons de caisse",
-                value: enableAppSounds,
-                onChanged: onEnableAppSoundsChanged,
-              ),
-              const Divider(),
-              PremiumSettingsWidgets.buildCompactSwitch(
-                context,
-                title: "Sons de l'Afficheur Client",
-                subtitle: "Bruitages et ambiance sur l'écran TV/Client",
-                value: enableCustomerDisplaySounds,
-                onChanged: (v) { onEnableCustomerDisplaySoundsChanged(v); onSaveDebounced(); },
-                activeColor: c.blue,
-                icon: FluentIcons.phone_screen_time_20_regular,
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 24),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bool isNarrow = constraints.maxWidth < 650;
         
-        PremiumSettingsWidgets.buildSectionHeader(
-          context,
-          icon: FluentIcons.cube_24_filled,
-          title: "Expérience Visuelle Avancée",
-          subtitle: "Moteurs de rendu haute performance",
-          color: c.violet,
-        ),
-        const SizedBox(height: 12),
-        PremiumSettingsWidgets.buildCard(
-          context,
-          child: Column(
-            children: [
-              PremiumSettingsWidgets.buildCompactSwitch(
-                context,
-                title: "DanayaFX (Rendu Premium)",
-                subtitle: "Effets visuels 100% hors-ligne (Aura & Réseau Géométrique)",
-                value: useCustomerDisplay3D,
-                onChanged: (v) { onUseCustomerDisplay3DChanged(v); onSaveDebounced(); },
-                activeColor: c.violet,
-                icon: FluentIcons.cube_20_regular,
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            PremiumSettingsWidgets.buildSectionHeader(
+              context,
+              icon: FluentIcons.speaker_2_24_filled,
+              title: "Expérience Sensorielle",
+              subtitle: "Personnalisez l'ambiance sonore et visuelle",
+              color: c.blue,
+            ),
+            const SizedBox(height: 12),
+            
+            if (isNarrow) ...[
+              _buildAudioBlock(context, c),
+              const SizedBox(height: 12),
+              _buildVisualBlock(context, c),
+            ] else ...[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 5, child: _buildAudioBlock(context, c)),
+                  const SizedBox(width: 12),
+                  Expanded(flex: 4, child: _buildVisualBlock(context, c)),
+                ],
               ),
             ],
+          ],
+        );
+      }
+    );
+  }
+
+  Widget _buildAudioBlock(BuildContext context, DashColors c) {
+    return PremiumSettingsWidgets.buildCard(
+      context,
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              PremiumSettingsWidgets.buildIconBadge(icon: FluentIcons.speaker_2_20_regular, color: c.blue),
+              const SizedBox(width: 10),
+              const Text("AUDIO", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 1)),
+            ],
           ),
-        ),
-      ],
-    ).animate().fadeIn(duration: 400.ms);
+          const SizedBox(height: 12),
+          PremiumSettingsWidgets.buildCompactSwitch(
+            context,
+            title: "Master Audio",
+            subtitle: "Système sonore global",
+            value: enableSounds,
+            onChanged: (v) { 
+              Future.microtask(() => onEnableSoundsChanged(v)); 
+              onSaveDebounced(); 
+            },
+            activeThumbColor: c.blue,
+            icon: FluentIcons.speaker_mute_20_regular,
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8.0),
+            child: Divider(height: 1),
+          ),
+          _buildSoundSwitchRowWithTest(
+            c,
+            title: "Flux Caisse",
+            sub: "Scans et alertes",
+            value: enableAppSounds,
+            onChanged: (v) { 
+              Future.microtask(() => onEnableAppSoundsChanged(v)); 
+              onSaveDebounced(); 
+            },
+          ),
+          const SizedBox(height: 8),
+          _buildSoundSwitchRowWithTest(
+            c,
+            title: "Flux Client",
+            sub: "Afficheur externe",
+            value: enableCustomerDisplaySounds,
+            onChanged: (v) { 
+              Future.microtask(() => onEnableCustomerDisplaySoundsChanged(v)); 
+              onSaveDebounced(); 
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVisualBlock(BuildContext context, DashColors c) {
+    return PremiumSettingsWidgets.buildCard(
+      context,
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              PremiumSettingsWidgets.buildIconBadge(icon: FluentIcons.glance_24_filled, color: c.violet),
+              const SizedBox(width: 10),
+              const Text("VISUEL", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 1)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          PremiumSettingsWidgets.buildCompactSwitch(
+            context,
+            title: "DanayaFX™",
+            subtitle: "Moteur 3D & Effets",
+            value: useCustomerDisplay3D,
+            onChanged: (v) { 
+              Future.microtask(() => onUseCustomerDisplay3DChanged(v)); 
+              onSaveDebounced(); 
+            },
+            activeThumbColor: c.violet,
+            icon: FluentIcons.cube_24_regular,
+          ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: c.violet.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: c.violet.withValues(alpha: 0.1)),
+            ),
+            child: Text(
+              "Améliore l'immersion avec des effets 3D fluides.",
+              style: TextStyle(fontSize: 10, color: c.textMuted, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildSoundSwitchRowWithTest(DashColors c, {required String title, required String sub, required bool value, required ValueChanged<bool> onChanged}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: value ? c.blue.withValues(alpha: 0.03) : Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: value ? c.blue.withValues(alpha: 0.1) : Colors.transparent),
+      ),
       child: Row(
         children: [
-          PremiumSettingsWidgets.buildIconBadge(icon: FluentIcons.speaker_1_20_regular, color: c.blue),
-          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                Text(sub, style: TextStyle(fontSize: 11, color: c.textSecondary)),
+                Text(sub, style: TextStyle(fontSize: 10, color: c.textMuted, fontWeight: FontWeight.w500)),
               ],
             ),
           ),
           if (value) ...[
             IconButton(
-              icon: Icon(FluentIcons.play_20_filled, color: c.emerald, size: 20),
+              icon: Icon(FluentIcons.play_20_regular, color: c.blue, size: 18),
               onPressed: onTestSound,
-              tooltip: "Tester le son",
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              padding: EdgeInsets.zero,
+              style: IconButton.styleFrom(backgroundColor: c.blue.withValues(alpha: 0.1)),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 4),
           ],
-          Switch.adaptive(value: value, onChanged: (v) { onChanged(v); onSaveDebounced(); }, activeColor: c.blue),
+          Transform.scale(
+            scale: 0.8,
+            child: Switch.adaptive(
+              value: value, 
+              onChanged: (v) { onChanged(v); onSaveDebounced(); }, 
+              activeThumbColor: c.blue,
+              activeTrackColor: c.blue.withValues(alpha: 0.2),
+            ),
+          ),
         ],
       ),
     );

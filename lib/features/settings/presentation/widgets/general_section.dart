@@ -222,9 +222,9 @@ class GeneralSettingsSection extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 0.5, color: Colors.grey)),
+              Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 0.5, color: Colors.grey)),
               const SizedBox(height: 2),
-              Text(value, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: c.textPrimary)),
+              Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: c.textPrimary)),
             ],
           ),
         ),
@@ -267,9 +267,9 @@ class GeneralSettingsSection extends StatelessWidget {
                 ? Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(FluentIcons.image_add_24_regular, size: 28, color: c.blue.withValues(alpha: 0.5)),
+                      Icon(FluentIcons.image_add_24_regular, size: 32, color: c.blue.withValues(alpha: 0.5)),
                       const SizedBox(height: 8),
-                      Text("LOGO", style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: c.textMuted, letterSpacing: 1)),
+                      Text("LOGO", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: c.textMuted, letterSpacing: 1)),
                     ],
                   )
                 : null,

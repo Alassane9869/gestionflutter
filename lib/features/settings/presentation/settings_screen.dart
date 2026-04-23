@@ -27,7 +27,8 @@ import 'widgets/general_section.dart';
 import 'widgets/finance_section.dart';
 import 'widgets/printing_section.dart';
 import 'widgets/automation_section.dart';
-import 'widgets/backup_cloud_dashboard.dart';
+import 'widgets/database_section.dart';
+import 'widgets/email_section.dart';
 import 'widgets/hardware_section.dart';
 import 'package:danaya_plus/features/settings/providers/maintenance_providers.dart';
 import 'package:danaya_plus/features/auth/application/auth_service.dart';
@@ -142,7 +143,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _enableCustomerDisplaySounds = true;
   bool _useCustomerDisplay3D = false;
   bool _showAssistant = true;
-  LabelPrintingFormat _labelFormat = LabelPrintingFormat.a4Sheets;
+  LabelPrintingFormat _labelFormat = LabelPrintingFormat.singleLabel;
   final _labelWidthCtrl = TextEditingController();
   final _labelHeightCtrl = TextEditingController();
 
@@ -221,11 +222,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     FluentIcons.phone_screen_time_24_regular,  // 6: Afficheur Client (TV)
     FluentIcons.speaker_2_24_regular,          // 7: Sons & Multimédia
     FluentIcons.flash_24_regular,              // 8: Automatisation & IA
-    FluentIcons.shield_24_regular,             // 9: Sauvegardes & Cloud
-    FluentIcons.wrench_24_regular,             // 10: Système & Réseau
-    FluentIcons.clipboard_task_list_ltr_24_regular, // 11: Audit Trail
-    FluentIcons.paint_brush_24_regular,       // 12: Personnalisation
-    FluentIcons.learning_app_24_regular,      // 13: D+ Academy
+    FluentIcons.mail_24_regular,               // 9: Cloud & Rapports Email
+    FluentIcons.database_24_regular,           // 10: Base de données & Sauvegarde
+    FluentIcons.wrench_24_regular,             // 11: Système & Réseau
+    FluentIcons.clipboard_task_list_ltr_24_regular, // 12: Audit Trail
+    FluentIcons.paint_brush_24_regular,       // 13: Personnalisation
+    FluentIcons.learning_app_24_regular,      // 14: D+ Academy
   ];
 
   final List<String> _menuItems = [
@@ -238,11 +240,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     "Afficheur Client (Pro)",   // 6
     "Sons & Multimédia",        // 7
     "Automatisation & IA",      // 8
-    "Sauvegardes & Cloud",      // 9
-    "Système & Maintenance",         // 10
-    "Audit & Traçabilité",      // 11
-    "Design Interface",         // 12
-    "D+ Academy (Guide)",        // 13
+    "Cloud & Rapports Email",   // 9
+    "Base de données & Sauvegarde", // 10
+    "Système & Maintenance",         // 11
+    "Audit & Traçabilité",      // 12
+    "Design Interface",         // 13
+    "D+ Academy (Guide)",        // 14
   ];
 
   // Regroupement par Modules (Pôles d'expertise)
@@ -257,11 +260,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     },
     {
       "title": "INTELLIGENCE & SÉCURITÉ",
-      "items": [8, 9, 10, 11],
+      "items": [8, 9, 10, 11, 12],
     },
     {
       "title": "EXPERTISE & AIDE",
-      "items": [12, 13],
+      "items": [13, 14],
     },
   ];
 
@@ -1103,10 +1106,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                 child: Text(
                                   module["title"],
                                   style: TextStyle(
-                                    fontSize: 10,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.w900,
                                     color: theme.colorScheme.primary.withValues(alpha: 0.6),
-                                    letterSpacing: 1.2,
+                                    letterSpacing: 1.5,
                                   ),
                                 ),
                               ),
@@ -1127,7 +1130,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                         },
                                       child: AnimatedContainer(
                                         duration: const Duration(milliseconds: 200),
-                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                                         decoration: BoxDecoration(
                                           color: isSelected 
                                               ? theme.colorScheme.primary.withValues(alpha: 0.08)
@@ -1146,7 +1149,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                               child: Text(
                                                 _menuItems[index],
                                                 style: TextStyle(
-                                                  fontSize: 12.5,
+                                                  fontSize: 14,
                                                   fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
                                                   color: isSelected ? theme.colorScheme.primary : (isDark ? Colors.white70 : Colors.black87),
                                                 ),
@@ -1170,19 +1173,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         }).toList(),
                       ),
                     ),
-                    // Footer Sidebar ultra compact
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: FilledButton.icon(
-                        onPressed: _save,
-                        icon: const Icon(FluentIcons.save_16_regular, size: 16),
-                        label: const Text("ENREGISTRER", style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5, fontSize: 10)),
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size.fromHeight(42),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                      ),
-                    ),
+                    // Sidebar footer was removed to enforce 100% silent saving.
+                    const SizedBox(height: 16),
                   ],
                 ),
               ),
@@ -1224,21 +1216,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     const Divider(height: 1),
                     
                     Expanded(
-                      child: _selectedIndex == 4
-                        // Le Design PDF utilise son propre scroll interne → pas de SingleChildScrollView
-                        ? Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: _buildRightContent(context, settings),
-                          )
-                        : SingleChildScrollView(
-                            padding: const EdgeInsets.all(40),
-                            child: Center(
-                              child: ConstrainedBox(
-                                constraints: const BoxConstraints(maxWidth: 900),
-                                child: _buildRightContent(context, settings),
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 300),
+                        switchInCurve: Curves.easeOutCubic,
+                        switchOutCurve: Curves.easeInCubic,
+                        child: _selectedIndex == 4
+                          ? Padding(
+                              key: const ValueKey(4),
+                              padding: const EdgeInsets.all(16),
+                              child: _buildRightContent(context, settings),
+                            )
+                          : SingleChildScrollView(
+                              key: ValueKey(_selectedIndex),
+                              padding: const EdgeInsets.all(40),
+                              child: Center(
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(maxWidth: 900),
+                                  child: _buildRightContent(context, settings),
+                                ),
                               ),
                             ),
-                          ),
+                      ),
                     ),
                   ],
                 ),
@@ -1261,11 +1259,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       case 6: return "Thèmes, sons et 3D pour l'écran tourné vers le client.";
       case 7: return "Configuration des sons et alertes multimédia.";
       case 8: return "Logiques de génération automatique et Assistant IA.";
-      case 9: return "Sauvegardes (Cloud/Local), Base de données et Emails.";
-      case 10: return "Configuration multi-postes, Serveur et Accès distant.";
-      case 11: return "Traçabilité complète des actions effectuées (Logs).";
-      case 12: return "Personnalisation de l'interface graphique.";
-      case 13: return "D+ Academy : Guide interactif et tutoriels.";
+      case 9: return "Rapports programmés, SMTP et alertes de stock.";
+      case 10: return "Sauvegardes SQL, restauration et maintenance technique.";
+      case 11: return "Configuration multi-postes, Serveur et Accès distant.";
+      case 12: return "Traçabilité complète des actions effectuées (Logs).";
+      case 13: return "Personnalisation de l'interface graphique.";
+      case 14: return "D+ Academy : Guide interactif et tutoriels.";
       default: return "";
     }
   }
@@ -1539,6 +1538,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           addressCtrl: _addressCtrl,
           phoneCtrl: _phoneCtrl,
           logoPath: _logoPath,
+
+          barcodeModel: _barcodeModel,
+          onBarcodeModelChanged: (v) { if (v != null) { setState(() => _barcodeModel = v); _saveDebounced(); } },
+          currency: _currency,
+          removeDecimals: _removeDecimals,
         );
       case 5: // Matériel Hub
         return HardwareSettingsSection(
@@ -1604,36 +1608,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       case 8: // Automatisation & IA
         return AutomationSettingsSection(
           useAutoRef: _useAutoRef,
-          onUseAutoRefChanged: (v) { setState(() => _useAutoRef = v); _saveDebounced(); },
+          onUseAutoRefChanged: (v) => setState(() { _useAutoRef = v; _saveDebounced(); }),
           refPrefixCtrl: _refPrefixCtrl,
           refModel: _refModel,
-          onRefModelChanged: (v) { if (v != null) { setState(() => _refModel = v); _saveDebounced(); } },
-          barcodeModel: _barcodeModel,
-          onBarcodeModelChanged: (v) { if (v != null) { setState(() => _barcodeModel = v); _saveDebounced(); } },
+          onRefModelChanged: (v) => setState(() { _refModel = v!; _saveDebounced(); }),
           autoPrintLabelsOnStockIn: _autoPrintLabelsOnStockIn,
-          onAutoPrintLabelsOnStockInChanged: (v) { setState(() => _autoPrintLabelsOnStockIn = v); _saveDebounced(); },
+          onAutoPrintLabelsOnStockInChanged: (v) => setState(() { _autoPrintLabelsOnStockIn = v; _saveDebounced(); }),
           showAssistant: _showAssistant,
-          onShowAssistantChanged: (v) { setState(() => _showAssistant = v); _saveDebounced(); },
+          onShowAssistantChanged: (v) => setState(() { _showAssistant = v; _saveDebounced(); }),
           roundingMode: _roundingMode,
-          onRoundingModeChanged: (v) { if (v != null) { setState(() => _roundingMode = v); _saveDebounced(); } },
+          onRoundingModeChanged: (v) => setState(() { _roundingMode = v!; _saveDebounced(); }),
           assistantLevel: _assistantLevel,
           onAssistantLevelChanged: (v) { if (v != null) { setState(() => _assistantLevel = v); _saveDebounced(); } },
           onSaveDebounced: _saveDebounced,
         );
-      case 9: // Sauvegardes & Cloud
-        return BackupCloudDashboard(
-          dbStats: _dbStats,
-          autoBackupEnabled: _autoBackupEnabled,
-          onAutoBackupEnabledChanged: (v) { setState(() => _autoBackupEnabled = v); _saveDebounced(); },
-          autoBackups: _autoBackups,
-          onBackupDatabase: _backupDatabase,
-          onRestoreDatabase: _restoreDatabase,
-          onRestoreSpecificBackup: _restoreSpecificBackup,
-          onConfirmResetDb: _confirmResetDb,
-          onRecalculateWac: _recalculateWac,
-          onCleanupImages: _cleanupImages,
-          cloudBackupPath: _cloudBackupPath,
-          onCloudBackupPathChanged: (path) { setState(() => _cloudBackupPath = path); _saveDebounced(); },
+      case 9: // Cloud & Rapports Email
+        return EmailSettingsSection(
           emailBackupEnabled: _emailBackupEnabled,
           onEmailBackupEnabledChanged: (v) { setState(() => _emailBackupEnabled = v); _saveDebounced(); },
           emailBackupFrequency: _emailBackupFrequency,
@@ -1667,8 +1657,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           onInactivityDaysThresholdChanged: (v) { setState(() => _inactivityDaysThreshold = v); _saveDebounced(); },
           onTestMarketingNewProduct: _testMarketingNewProduct,
           onTestMarketingInactivity: _testMarketingInactivity,
+          cloudBackupPath: _cloudBackupPath,
+          onCloudBackupPathChanged: (path) { setState(() => _cloudBackupPath = path); _saveDebounced(); },
         );
-      case 10: // Système & Réseau
+      case 10: // Base de données & Sauvegarde
+        return DatabaseSettingsSection(
+          dbStats: _dbStats,
+          autoBackupEnabled: _autoBackupEnabled,
+          onAutoBackupEnabledChanged: (v) { setState(() => _autoBackupEnabled = v); _saveDebounced(); },
+          autoBackups: _autoBackups,
+          onBackupDatabase: _backupDatabase,
+          onRestoreDatabase: _restoreDatabase,
+          onRestoreSpecificBackup: _restoreSpecificBackup,
+          onConfirmResetDb: _confirmResetDb,
+          onRecalculateWac: _recalculateWac,
+          onCleanupImages: _cleanupImages,
+          onSaveDebounced: _saveDebounced,
+        );
+      case 11: // Système & Réseau
         return SystemMaintenanceSection(
           daysRemaining: _daysRemaining ?? 0,
           onViewTos: _showTosDialog,
@@ -1683,18 +1689,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           onAutoLockEnabledChanged: (v) { setState(() => _isAutoLockEnabled = v); _saveDebounced(); },
           autoLockMinutesCtrl: _autoLockMinutesCtrl,
         );
-      case 11: // Audit & Traçabilité
-        return Column(
-          children: [
-             AuditSettingsSection(
-                logs: _logs,
-                onRefresh: _loadLogs,
-             ),
-          ],
+      case 12: // Audit & Traçabilité
+        return AuditSettingsSection(
+          logs: _logs,
+          onRefresh: _loadLogs,
         );
-      case 12: // Design Interface
+      case 13: // Design Interface
         return const AppearanceSettingsSection();
-      case 13: // D+ Academy (Guide)
+      case 14: // D+ Academy (Guide)
         return ConstrainedBox(
           constraints: const BoxConstraints(minHeight: 800, maxHeight: 1200),
           child: HelpScreen(embedded: true),

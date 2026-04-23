@@ -141,7 +141,7 @@ String getCustomerDisplayHtml(
       opacity: 0; transform: translateY(20px);
     }
     .ad-card.active { opacity: 1; transform: translateY(0); }
-    .ad-card img { width: 90px; height: 90px; border-radius: 12px; object-fit: cover; background: var(--border); box-shadow: 0 8px 16px rgba(0,0,0,0.1); }
+    .ad-card img { width: 120px; height: 120px; border-radius: 12px; object-fit: cover; background: var(--border); box-shadow: 0 8px 20px rgba(0,0,0,0.15); image-rendering: -webkit-optimize-contrast; image-rendering: high-quality; transform: translateZ(0); filter: contrast(1.02) brightness(1.03); }
     .ad-subtitle { font-size: 10px; font-weight: 800; letter-spacing: 3px; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; }
     .ad-title { font-family: 'Inter', sans-serif; font-size: 20px; font-weight: 800; color: var(--text); margin-bottom: 6px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 250px; }
     .ad-price { font-size: 18px; font-weight: 700; color: var(--brand-accent); }
@@ -173,7 +173,7 @@ String getCustomerDisplayHtml(
     }
     .item:last-child { border-bottom: none; }
     
-    .item-img { width: 46px; height: 46px; border-radius: 10px; object-fit: cover; background: var(--border); }
+    .item-img { width: 46px; height: 46px; border-radius: 10px; object-fit: cover; background: var(--border); image-rendering: -webkit-optimize-contrast; image-rendering: high-quality; transform: translateZ(0); }
     .item-info { overflow: hidden; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
     .item-name { font-weight: 600; font-size: 14px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: -0.2px; }
     .item-qty-price { font-size: 12px; color: var(--muted); font-weight: 500; }

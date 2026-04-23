@@ -337,9 +337,34 @@ class PosService {
           // --- CHANGE (RELIQUAT) TRACEABILITY ---
           final changeAmount = SafeMath.round2(amountPaidSafe - totalAmountSafe);
           if (changeAmount > 0) {
-             // Find the first CASH account or the one provided as primary to deduct the change from
-             // We prioritize accountId from parameters if provided
-             final changeAccountId = accountId ?? (actualPayments.isNotEmpty ? actualPayments.first['accountId'] as String? : null);
+             // Logic Pro: On déduit toujours le rendu monnaie du compte CASH (Espèces) si possible, 
+             // car on rend rarement de la monnaie via Orange Money ou Banque.
+             String? changeAccountId;
+             
+             // 1. Chercher un compte CASH dans les paiements effectués
+             final cashPayment = actualPayments.firstWhere(
+               (p) => (p['method'] as String? ?? "CASH") == "CASH", 
+               orElse: () => {},
+             );
+             if (cashPayment.isNotEmpty) {
+               changeAccountId = cashPayment['accountId'] as String?;
+             }
+
+             // 2. Si pas trouvé, chercher le compte CASH par défaut dans la base
+             if (changeAccountId == null) {
+               final cashAccountRow = await txn.query(
+                 'financial_accounts', 
+                 where: 'type = ?', 
+                 whereArgs: ['CASH'], 
+                 limit: 1,
+               );
+               if (cashAccountRow.isNotEmpty) {
+                 changeAccountId = cashAccountRow.first['id'] as String;
+               }
+             }
+
+             // 3. Fallback sur le compte principal de la vente
+             changeAccountId ??= accountId;
              
              if (changeAccountId != null) {
                 final txOut = FinancialTransaction(

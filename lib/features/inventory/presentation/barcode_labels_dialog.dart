@@ -4,6 +4,8 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:danaya_plus/features/inventory/domain/models/product.dart';
 import 'package:danaya_plus/features/inventory/application/inventory_automation_service.dart';
 import 'package:danaya_plus/core/widgets/enterprise_widgets.dart';
+import 'package:danaya_plus/core/widgets/premium_settings_widgets.dart';
+import 'package:danaya_plus/features/inventory/presentation/widgets/dashboard_widgets.dart';
 import 'package:danaya_plus/features/settings/providers/shop_settings_provider.dart';
 
 class BarcodeLabelsDialog extends ConsumerStatefulWidget {
@@ -15,72 +17,113 @@ class BarcodeLabelsDialog extends ConsumerStatefulWidget {
 }
 
 class _BarcodeLabelsDialogState extends ConsumerState<BarcodeLabelsDialog> {
-  final Map<String, int> _selectedQuantities = {};
-  String _searchQuery = "";
+  final Map<String, int> _itemsToPrint = {}; // Map ProductID -> Qty
+  final Set<String> _selectedIds = {};       // Checked items
   final _searchController = TextEditingController();
+  final Map<String, TextEditingController> _qtyControllers = {};
+  String _currentSearch = "";
 
   @override
   void initState() {
     super.initState();
-    // Par défaut, on ne sélectionne rien pour laisser l'utilisateur choisir
+    // Par défaut, si on vient avec des produits initiaux, on les ajoute
+    for (var p in widget.initialProducts) {
+      _itemsToPrint[p.id] = 1;
+      _selectedIds.add(p.id);
+      _qtyControllers[p.id] = TextEditingController(text: "1");
+    }
   }
 
   @override
   void dispose() {
     _searchController.dispose();
-    super.dispose();
-  }
-
-  void _toggleSelection(Product p) {
-    setState(() {
-      if (_selectedQuantities.containsKey(p.id)) {
-        _selectedQuantities.remove(p.id);
-      } else {
-        _selectedQuantities[p.id] = 1;
-      }
-    });
-  }
-
-  void _setQuantity(Product p, int qty) {
-    if (qty <= 0) {
-      setState(() => _selectedQuantities.remove(p.id));
-    } else {
-      setState(() => _selectedQuantities[p.id] = qty);
+    for (var ctrl in _qtyControllers.values) {
+      ctrl.dispose();
     }
+    super.dispose();
   }
 
   void _selectAll() {
     setState(() {
-      for (final p in widget.initialProducts) {
-        if (p.barcode != null && p.barcode!.isNotEmpty) {
-           _selectedQuantities[p.id] = 1;
+      for (var p in widget.initialProducts) {
+        if (!_itemsToPrint.containsKey(p.id)) {
+          _itemsToPrint[p.id] = 1;
+          _qtyControllers[p.id] = TextEditingController(text: "1");
+        }
+        _selectedIds.add(p.id);
+      }
+    });
+  }
+
+  void _selectAlerts() {
+    setState(() {
+      for (var p in widget.initialProducts) {
+        if (p.isLowStock || p.isOutOfStock) {
+          if (!_itemsToPrint.containsKey(p.id)) {
+            _itemsToPrint[p.id] = 1;
+            _qtyControllers[p.id] = TextEditingController(text: "1");
+          }
+          _selectedIds.add(p.id);
+        } else {
+          _selectedIds.remove(p.id);
         }
       }
     });
   }
 
-  void _selectLowStock() {
+  void _clearAll() {
     setState(() {
-      _selectedQuantities.clear();
-      for (final p in widget.initialProducts) {
-        if (p.isLowStock || p.isOutOfStock) {
-           if (p.barcode != null && p.barcode!.isNotEmpty) {
-              _selectedQuantities[p.id] = 1;
-           }
+      _selectedIds.clear();
+      _itemsToPrint.clear();
+      for (var ctrl in _qtyControllers.values) {
+        ctrl.dispose();
+      }
+      _qtyControllers.clear();
+    });
+  }
+
+  void _toggleItem(String id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+      } else {
+        _selectedIds.add(id);
+        if (!_itemsToPrint.containsKey(id)) {
+          _itemsToPrint[id] = 1;
+          _qtyControllers[id] = TextEditingController(text: "1");
         }
       }
     });
+  }
+
+  void _updateQty(String id, int next) {
+    if (next < 1) return;
+    setState(() {
+      _itemsToPrint[id] = next;
+      _qtyControllers[id]?.text = next.toString();
+    });
+  }
+
+  void _handleManualQty(String id, String value) {
+    final val = int.tryParse(value);
+    if (val != null && val > 0) {
+      _itemsToPrint[id] = val;
+    }
   }
 
   Future<void> _handlePrint() async {
-    if (_selectedQuantities.isEmpty) return;
+    final selectedItems = _selectedIds.toList();
+    if (selectedItems.isEmpty) return;
 
     final List<Product> toPrint = [];
-    for (final entry in _selectedQuantities.entries) {
-      final product = widget.initialProducts.firstWhere((p) => p.id == entry.key);
-      for (int i = 0; i < entry.value; i++) {
-        toPrint.add(product);
-      }
+    for (final id in selectedItems) {
+      try {
+        final product = widget.initialProducts.firstWhere((p) => p.id == id);
+        final qty = _itemsToPrint[id] ?? 1;
+        for (int i = 0; i < qty; i++) {
+          toPrint.add(product);
+        }
+      } catch (_) {}
     }
 
     try {
@@ -89,206 +132,141 @@ class _BarcodeLabelsDialogState extends ConsumerState<BarcodeLabelsDialog> {
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
-      );
+      EnterpriseWidgets.showPremiumErrorDialog(context, title: "Erreur d'impression", message: e.toString());
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    final filtered = widget.initialProducts.where((p) {
-      final matchesSearch = p.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          (p.barcode?.contains(_searchQuery) ?? false) ||
-          (p.reference?.toLowerCase().contains(_searchQuery.toLowerCase()) ?? false);
-      return matchesSearch && p.barcode != null && p.barcode!.isNotEmpty;
+    final c = DashColors.of(context);
+    
+    final filteredProducts = widget.initialProducts.where((p) {
+      if (_currentSearch.isEmpty) return true;
+      return p.name.toLowerCase().contains(_currentSearch.toLowerCase()) || 
+             (p.barcode?.contains(_currentSearch) ?? false) ||
+             (p.reference?.contains(_currentSearch) ?? false);
     }).toList();
+
+    final totalLabels = _selectedIds.fold(0, (a, id) => a + (_itemsToPrint[id] ?? 0));
 
     return EnterpriseWidgets.buildPremiumDialog(
       context,
       title: "Générateur d'Étiquettes",
-      icon: FluentIcons.barcode_scanner_24_regular,
-      width: 600,
+      icon: FluentIcons.barcode_scanner_24_filled,
+      width: 850,
       child: Column(
         children: [
-          // Toolbar avec actions rapides
+          // ── HEADER CARDS (Bento Style) ──
           Row(
             children: [
-                _QuickActionBtn(
-                  label: "Toute la liste",
+              Expanded(
+                child: _buildHeaderActionCard(
+                  context,
+                  title: "Toute la liste",
                   icon: FluentIcons.checkbox_checked_24_regular,
+                  color: c.amber,
                   onTap: _selectAll,
-                  color: theme.colorScheme.primary,
                 ),
-                const SizedBox(width: 12),
-                _QuickActionBtn(
-                  label: "Alertes Stock",
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildHeaderActionCard(
+                  context,
+                  title: "Alertes Stock",
                   icon: FluentIcons.warning_24_regular,
-                  onTap: _selectLowStock,
-                  color: Colors.orange,
+                  color: c.amber,
+                  onTap: _selectAlerts,
                 ),
-                const SizedBox(width: 12),
-                _QuickActionBtn(
-                  label: "Vider",
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildHeaderActionCard(
+                  context,
+                  title: "Vider",
                   icon: FluentIcons.dismiss_24_regular,
-                  onTap: () => setState(() => _selectedQuantities.clear()),
-                  color: Colors.red,
+                  color: c.rose,
+                  onTap: _clearAll,
                 ),
+              ),
             ],
           ),
           const SizedBox(height: 20),
-          // Barre de recherche
-          TextField(
-            controller: _searchController,
-            onChanged: (v) => setState(() => _searchQuery = v),
-            decoration: InputDecoration(
-              hintText: "Rechercher un produit ou un code...",
-              prefixIcon: const Icon(FluentIcons.search_24_regular, size: 20),
-              filled: true,
-              fillColor: isDark ? const Color(0xFF16181D) : const Color(0xFFF9FAFB),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+
+          // ── SEARCH BAR ──
+          Container(
+            decoration: BoxDecoration(
+              color: c.isDark ? Colors.black.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.03),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: c.border),
+            ),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (v) => setState(() => _currentSearch = v),
+              decoration: InputDecoration(
+                hintText: "Rechercher un produit ou un code...",
+                prefixIcon: Icon(FluentIcons.search_24_regular, color: c.textMuted),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              ),
             ),
           ),
           const SizedBox(height: 16),
-          // Liste des produits
-          Container(
-            height: 350,
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF16181D) : const Color(0xFFF9FAFB),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: isDark ? const Color(0xFF2D3039) : const Color(0xFFE5E7EB)),
-            ),
-            child: filtered.isEmpty
-                ? const Center(child: Text("Aucun produit correspondant", style: TextStyle(color: Colors.grey)))
-                : ListView.separated(
-                    padding: const EdgeInsets.all(8),
-                    itemCount: filtered.length,
-                    separatorBuilder: (_, __) => Divider(height: 1, color: isDark ? const Color(0xFF2D3039) : const Color(0xFFE5E7EB)),
-                    itemBuilder: (ctx, i) {
-                      final p = filtered[i];
-                      final isSelected = _selectedQuantities.containsKey(p.id);
-                      final qty = _selectedQuantities[p.id] ?? 0;
 
-                      return ListTile(
-                        visualDensity: VisualDensity.compact,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                        leading: Checkbox(
-                          value: isSelected,
-                          onChanged: (_) => _toggleSelection(p),
-                          activeColor: theme.colorScheme.primary,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                        ),
-                        title: Row(
-                          children: [
-                            Expanded(
-                              child: Text(p.name, 
-                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            _StockBadge(stock: p.quantity.toDouble(), minStock: p.alertThreshold.toDouble()),
-                          ],
-                        ),
-                        subtitle: Text(p.barcode ?? p.reference ?? "Pas de code", 
-                          style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                        trailing: isSelected
-                            ? Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    _QtyBtn(icon: FluentIcons.subtract_16_regular, onTap: () => _setQuantity(p, qty - 1)),
-                                    Container(
-                                      constraints: const BoxConstraints(minWidth: 24),
-                                      alignment: Alignment.center,
-                                      child: Text("$qty", style: TextStyle(
-                                        fontWeight: FontWeight.w900, 
-                                        color: theme.colorScheme.primary,
-                                        fontSize: 13,
-                                      )),
-                                    ),
-                                    _QtyBtn(icon: FluentIcons.add_16_regular, onTap: () => _setQuantity(p, qty + 1)),
-                                  ],
-                                ),
-                              )
-                            : null,
-                        onTap: () => _toggleSelection(p),
+          // ── PRODUCT LIST ──
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: c.isDark ? const Color(0xFF14161B) : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: c.border),
+              ),
+              child: filteredProducts.isEmpty 
+                ? Center(child: Text("Aucun produit trouvé", style: TextStyle(color: c.textMuted)))
+                : ListView.builder(
+                    padding: const EdgeInsets.all(8),
+                    itemCount: filteredProducts.length,
+                    itemBuilder: (context, index) {
+                      final p = filteredProducts[index];
+                      final isSelected = _selectedIds.contains(p.id);
+                      final qty = _itemsToPrint[p.id] ?? 1;
+                      
+                      if (!_qtyControllers.containsKey(p.id)) {
+                        _qtyControllers[p.id] = TextEditingController(text: qty.toString());
+                      }
+
+                      return _PrintingItemTile(
+                        product: p,
+                        quantity: qty,
+                        isSelected: isSelected,
+                        qtyController: _qtyControllers[p.id]!,
+                        onToggle: () => _toggleItem(p.id),
+                        onUpdateQty: (val) => _updateQty(p.id, qty + val),
+                        onManualQty: (val) => _handleManualQty(p.id, val),
                       );
                     },
                   ),
+            ),
           ),
           const SizedBox(height: 16),
-          // Info Format
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            margin: const EdgeInsets.only(bottom: 8),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.amber.withValues(alpha: 0.15),
-                  Colors.amber.withValues(alpha: 0.05),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.amber.withValues(alpha: 0.2)),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: Colors.amber.withValues(alpha: 0.2),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(FluentIcons.print_24_regular, color: Colors.amber, size: 16),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "CONFIGURATION D'IMPRESSION",
-                        style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Colors.amber, letterSpacing: 0.5),
-                      ),
-                      Text(
-                        ref.watch(shopSettingsProvider).value?.labelFormat == LabelPrintingFormat.a4Sheets 
-                            ? "Planches A4 multi-colonnes (Optimal)" 
-                            : "Étiquette Unique (Rouleau Thermique)",
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Résumé
+
+          // ── CONFIGURATION BANNER ──
+          _buildConfigBanner(context, c),
+          const SizedBox(height: 16),
+
+          // ── SUMMARY FOOTER ──
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withValues(alpha: 0.05),
+              color: c.surfaceElev,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
               children: [
-                Icon(FluentIcons.info_24_regular, color: theme.colorScheme.primary, size: 20),
+                Icon(FluentIcons.info_24_regular, color: c.amber, size: 20),
                 const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    "Total : ${_selectedQuantities.length} produits • ${_selectedQuantities.values.fold(0, (a, b) => a + b)} étiquettes",
-                    style: TextStyle(fontWeight: FontWeight.bold, color: theme.colorScheme.primary, fontSize: 13),
-                  ),
+                Text(
+                  "Total : ${_selectedIds.length} produits • $totalLabels étiquettes",
+                  style: TextStyle(fontWeight: FontWeight.w800, color: c.amber, fontSize: 14),
                 ),
               ],
             ),
@@ -296,111 +274,209 @@ class _BarcodeLabelsDialogState extends ConsumerState<BarcodeLabelsDialog> {
         ],
       ),
       actions: [
-        OutlinedButton(
+        TextButton(
           onPressed: () => Navigator.pop(context),
-          style: OutlinedButton.styleFrom(
-             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            foregroundColor: c.textPrimary,
           ),
           child: const Text("Annuler"),
         ),
-        const SizedBox(width: 12),
-        ElevatedButton.icon(
-          onPressed: _selectedQuantities.isEmpty ? null : _handlePrint,
-          icon: const Icon(FluentIcons.print_24_regular, size: 18),
-          label: const Text("Générer PDF"),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: theme.colorScheme.primary,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
+        const SizedBox(width: 8),
+        PremiumSettingsWidgets.buildGradientBtn(
+          onPressed: _selectedIds.isEmpty ? () {} : _handlePrint,
+          icon: FluentIcons.document_pdf_24_regular,
+          label: "Générer PDF",
+          colors: [const Color(0xFFFF8008), const Color(0xFFFFC837)], // Orange gradient
         ),
       ],
     );
   }
-}
 
-class _QuickActionBtn extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
-  final Color color;
-  const _QuickActionBtn({required this.label, required this.icon, required this.onTap, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: color.withValues(alpha: 0.3)),
-            color: color.withValues(alpha: 0.05),
-          ),
-          child: Column(
-            children: [
-              Icon(icon, size: 18, color: color),
-              const SizedBox(height: 4),
-              Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color)),
-            ],
-          ),
+  Widget _buildHeaderActionCard(BuildContext context, {required String title, required IconData icon, required Color color, required VoidCallback onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+          color: color.withValues(alpha: 0.02),
         ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(height: 8),
+            Text(title, style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 13)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildConfigBanner(BuildContext context, DashColors c) {
+    final settings = ref.watch(shopSettingsProvider).value;
+    final format = settings?.labelFormat ?? LabelPrintingFormat.a4Sheets;
+    final isA4 = format == LabelPrintingFormat.a4Sheets;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF282C34).withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: c.amber.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+            child: Icon(FluentIcons.print_24_regular, color: c.amber, size: 20),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("CONFIGURATION D'IMPRESSION", style: TextStyle(fontWeight: FontWeight.w900, color: c.amber, fontSize: 11, letterSpacing: 0.5)),
+                Text(
+                  isA4 ? "Planches A4 (Impression Standard)" : "Étiquette Unique (Rouleau Thermique)",
+                  style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _StockBadge extends StatelessWidget {
-  final double stock;
-  final double minStock;
-  const _StockBadge({required this.stock, required this.minStock});
+class _PrintingItemTile extends StatelessWidget {
+  final Product product;
+  final int quantity;
+  final bool isSelected;
+  final TextEditingController qtyController;
+  final VoidCallback onToggle;
+  final Function(int) onUpdateQty;
+  final Function(String) onManualQty;
+
+  const _PrintingItemTile({
+    required this.product,
+    required this.quantity,
+    required this.isSelected,
+    required this.qtyController,
+    required this.onToggle,
+    required this.onUpdateQty,
+    required this.onManualQty,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final bool isLow = stock <= minStock && stock > 0;
-    final bool isCritical = stock <= 0;
-    final Color color = isCritical ? Colors.red : (isLow ? Colors.orange : Colors.green);
+    final c = DashColors.of(context);
     
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
+        color: isSelected ? c.surfaceElev : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isSelected ? c.borderHover : Colors.transparent),
       ),
-      child: Text(
-        "${stock.toInt()}",
-        style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w900,
-          color: color,
-        ),
+      child: Row(
+        children: [
+          // Checkbox circular
+          GestureDetector(
+            onTap: onToggle,
+            child: Container(
+              width: 24, height: 24,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: isSelected ? c.amber : c.textMuted, width: 2),
+                color: isSelected ? c.amber : Colors.transparent,
+              ),
+              child: isSelected ? const Icon(Icons.check, size: 16, color: Colors.black) : null,
+            ),
+          ),
+          const SizedBox(width: 16),
+          
+          // Product Info
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(product.name, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: isSelected ? c.textPrimary : c.textSecondary)),
+                Text(product.barcode ?? product.reference ?? "Sans code", style: TextStyle(color: c.textMuted, fontSize: 12)),
+              ],
+            ),
+          ),
+
+          // Stock Badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: c.emerald.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              product.quantity.toInt().toString(),
+              style: TextStyle(color: c.emerald, fontWeight: FontWeight.w900, fontSize: 12),
+            ),
+          ),
+          const SizedBox(width: 16),
+
+          // Qty Selector with Manual Input
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: c.isDark ? Colors.black.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _MiniBtn(icon: FluentIcons.subtract_16_regular, onTap: () => onUpdateQty(-1)),
+                Container(
+                  width: 45,
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: TextField(
+                    controller: qtyController,
+                    onChanged: onManualQty,
+                    textAlign: TextAlign.center,
+                    keyboardType: TextInputType.number,
+                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: c.textPrimary),
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                ),
+                _MiniBtn(icon: FluentIcons.add_16_regular, color: c.amber, onTap: () => onUpdateQty(1)),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _QtyBtn extends StatelessWidget {
+class _MiniBtn extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
-  const _QtyBtn({required this.icon, required this.onTap});
+  final Color? color;
+  const _MiniBtn({required this.icon, required this.onTap, this.color});
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
+      borderRadius: BorderRadius.circular(8),
       child: Container(
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Icon(icon, size: 14),
+        padding: const EdgeInsets.all(6),
+        child: Icon(icon, size: 16, color: color),
       ),
     );
   }

@@ -6,8 +6,6 @@ import 'package:uuid/uuid.dart';
 import 'package:sqflite_sqlcipher/sqflite.dart';
 import 'package:danaya_plus/core/database/database_service.dart';
 import 'package:danaya_plus/features/inventory/domain/models/product.dart';
-import 'package:danaya_plus/features/settings/providers/shop_settings_provider.dart';
-import 'package:danaya_plus/features/inventory/application/inventory_automation_service.dart';
 import 'package:danaya_plus/features/auth/application/auth_service.dart';
 
 final productRepositoryProvider = Provider<ProductRepository>((ref) {
@@ -21,16 +19,22 @@ class ProductRepository {
 
   ProductRepository(this._dbService, this._ref);
 
-  Future<List<Product>> getAll({String? warehouseId}) async {
+  Future<List<Product>> getAll({String? warehouseId, bool includeArchived = false}) async {
     final db = await _dbService.database;
+    
     if (warehouseId == null) {
-      final maps = await db.query('products', orderBy: 'name ASC');
+      final maps = await db.query(
+        'products', 
+        where: includeArchived ? null : 'is_active = 1',
+        orderBy: 'name ASC',
+      );
       return maps.map((m) => Product.fromMap(m)).toList();
     } else {
       final maps = await db.rawQuery('''
         SELECT p.*, COALESCE(ws.quantity, 0) as warehouse_qty
         FROM products p
         LEFT JOIN warehouse_stock ws ON p.id = ws.product_id AND ws.warehouse_id = ?
+        ${includeArchived ? '' : 'WHERE p.is_active = 1'}
         ORDER BY p.name ASC
       ''', [warehouseId]);
       return maps.map((m) {
@@ -63,7 +67,7 @@ class ProductRepository {
       'quantity': p.quantity,
     });
 
-    // Log d'audit
+    // Audit log (Ultra Pro)
     final currentUser = _ref.read(authServiceProvider).value;
     unawaited(_dbService.logActivity(
       userId: currentUser?.id,
@@ -72,20 +76,6 @@ class ProductRepository {
       entityId: productId,
       description: "Ajout du produit ${p.name} (Ref: ${p.reference})",
     ));
-
-    // Ultra Pro: Auto-Etiquetage
-    try {
-      final settings = await _ref.read(shopSettingsProvider.future);
-      if (settings.autoPrintLabelsOnStockIn && product.quantity > 0) {
-        final automation = _ref.read(inventoryAutomationServiceProvider);
-        // Print labels for the integer part of the quantity
-        final int printCount = product.quantity.ceil();
-        final List<Product> printQueue = List.generate(printCount, (_) => product);
-        await automation.printBarcodeLabels(printQueue);
-      }
-    } catch (e) {
-      // On ne bloque pas l'insertion si l'impression échoue
-    }
   }
 
   Future<void> update(Product product) async {
@@ -142,10 +132,9 @@ class ProductRepository {
     )) ?? 0;
 
     if (saleCount > 0 || movementCount > 0) {
-      throw Exception(
-        "Impossible de supprimer ce produit car il possède un historique ($saleCount vente(s), $movementCount mouvement(s)). "
-        "Veuillez plutôt le renommer ou utiliser l'ajustement de stock pour le mettre à zéro.",
-      );
+      // Logic Pro: On archive au lieu de supprimer si historique présent
+      await archive(id);
+      return;
     }
 
     // Récupérer les infos avant suppression
@@ -174,11 +163,29 @@ class ProductRepository {
       actionType: 'PRODUCT_DELETE',
       entityType: 'PRODUCT',
       entityId: id,
-      description: "Suppression du produit $productName",
+      description: "Suppression définitive du produit $productName",
     ));
   }
 
-  Future<List<Product>> search(String query, {String? warehouseId}) async {
+  Future<void> archive(String id) async {
+    final db = await _dbService.database;
+    final product = await getById(id);
+    if (product == null) return;
+
+    await db.update('products', {'is_active': 0}, where: 'id = ?', whereArgs: [id]);
+
+    // Log d'audit
+    final currentUser = _ref.read(authServiceProvider).value;
+    unawaited(_dbService.logActivity(
+      userId: currentUser?.id,
+      actionType: 'PRODUCT_ARCHIVE',
+      entityType: 'PRODUCT',
+      entityId: id,
+      description: "Archivage du produit ${product.name}",
+    ));
+  }
+
+  Future<List<Product>> search(String query, {String? warehouseId, bool includeArchived = false}) async {
     final db = await _dbService.database;
     
     // Supreme Performance: Use FTS5 MATCH for ultra-fast multi-criteria search
@@ -191,7 +198,7 @@ class ProductRepository {
         SELECT p.* 
         FROM products p
         JOIN products_fts fts ON p.id = fts.id
-        WHERE products_fts MATCH ?
+        WHERE products_fts MATCH ? ${includeArchived ? '' : 'AND p.is_active = 1'}
         ORDER BY rank, p.name ASC
       ''', [ftsQuery]);
       return maps.map((m) => Product.fromMap(m)).toList();
@@ -201,7 +208,7 @@ class ProductRepository {
         FROM products p
         JOIN products_fts fts ON p.id = fts.id
         LEFT JOIN warehouse_stock ws ON p.id = ws.product_id AND ws.warehouse_id = ?
-        WHERE products_fts MATCH ?
+        WHERE products_fts MATCH ? ${includeArchived ? '' : 'AND p.is_active = 1'}
         ORDER BY rank, p.name ASC
       ''', [warehouseId, ftsQuery]);
       return maps.map((m) {

@@ -14,6 +14,8 @@ import 'package:danaya_plus/features/inventory/providers/warehouse_providers.dar
 import 'package:danaya_plus/features/inventory/data/product_repository.dart';
 import 'package:danaya_plus/core/network/client_sync_service.dart';
 import 'package:danaya_plus/core/utils/image_resolver.dart';
+import 'package:danaya_plus/features/inventory/application/inventory_automation_service.dart';
+import 'widgets/label_printing_utils.dart';
 
 class ProductFormDialog extends ConsumerStatefulWidget {
   final Product? product;
@@ -40,11 +42,9 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
   String? _selectedWarehouseId;
   List<String> _existingCategories = [];
   
-  // Nouveaux champs v42
   bool _isService = false;
   String? _selectedUnit;
 
-  // Liste des unités standardisées
   static const List<String> _standardUnits = [
     'Pièce', 'kg', 'g', 'Litre', 'ml', 'Mètre', 'cm', 'm²', 'm³', 
     'Sac', 'Boîte', 'Carton', 'Palette', 'Paquet', 'Heure', 'Jour', 'Forfait', 'Unité'
@@ -75,8 +75,6 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
     _isService = p?.isService ?? false;
     _selectedUnit = p?.unit;
     
-    // Si on n'est pas en édition, on tente de récupérer l'entrepôt du filtre global.
-    // S'il est à null (Tous les entrepôts), on le garde à null pour l'instant et on gérera le fallback dans le builder.
     if (!isEditing) {
       _selectedWarehouseId = ref.read(selectedWarehouseIdProvider);
     }
@@ -136,13 +134,13 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
       barcode: _barcodeController.text.trim().isEmpty ? null : _barcodeController.text.trim(),
       reference: _referenceController.text.trim().isEmpty ? null : _referenceController.text.trim(),
       category: _categoryController.text.trim().isEmpty ? null : _categoryController.text.trim(),
-      quantity: (double.tryParse(_quantityController.text) ?? 0.0).abs(),
-      purchasePrice: (double.tryParse(_purchasePriceController.text) ?? 0.0).abs(),
-      sellingPrice: (double.tryParse(_sellingPriceController.text) ?? 0.0).abs(),
-      alertThreshold: (double.tryParse(_alertThresholdController.text) ?? 5.0).abs(),
+      quantity: _isService ? 0.0 : (double.tryParse(_quantityController.text) ?? 0.0),
+      purchasePrice: double.tryParse(_purchasePriceController.text) ?? 0.0,
+      sellingPrice: double.tryParse(_sellingPriceController.text) ?? 0.0,
+      alertThreshold: double.tryParse(_alertThresholdController.text) ?? 5.0,
       description: _descriptionController.text.trim().isEmpty ? null : _descriptionController.text.trim(),
       imagePath: _imagePath,
-      location: _locationController.text.trim().isEmpty ? null : _locationController.text.trim(),
+      location: _isService ? null : (_locationController.text.trim().isEmpty ? null : _locationController.text.trim()),
       isService: _isService,
       unit: _selectedUnit,
     );
@@ -155,15 +153,13 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
       final settings = ref.read(shopSettingsProvider).value;
       String? finalImagePath = _imagePath;
 
-      // Si on a une image locale (pas encore sur le serveur) et qu'on est en mode client/serveur
       if (_imagePath != null && 
           File(_imagePath!).existsSync() && 
           settings?.networkMode != NetworkMode.solo) {
         
-        // Upload vers le serveur
         final fileName = await ref.read(clientSyncProvider).uploadImage(File(_imagePath!));
         if (fileName != null) {
-          finalImagePath = fileName; // On stocke juste le nom de fichier
+          finalImagePath = fileName;
         }
       }
 
@@ -175,15 +171,30 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
         await ref.read(productListProvider.notifier).addProduct(updatedProduct, warehouseId: _selectedWarehouseId);
       }
 
+      // Ultra Pro: UI-Driven Auto-Print Validation
       if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(isEditing ? "Article modifié !" : "Article ajouté !"),
-            backgroundColor: Colors.green.shade600,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        if (!isEditing && settings?.autoPrintLabelsOnStockIn == true && updatedProduct.quantity > 0) {
+          // One-shot check for newly added quantity
+          final List<Product> printQueue = List.generate(updatedProduct.quantity.ceil(), (_) => updatedProduct);
+          
+          await LabelPrintingUtils.confirmAndPrintLabels(
+            context,
+            ref,
+            products: printQueue,
+            sourceAction: "Création du produit ${updatedProduct.name}",
+          );
+        }
+
+        if (mounted) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(isEditing ? "Article modifié !" : "Article ajouté !"),
+              backgroundColor: Colors.green.shade600,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -196,6 +207,79 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
         );
       }
     }
+  }
+
+  void _showAdjustmentDialog() {
+    final ctrl = TextEditingController(text: _quantityController.text);
+    String reason = "Erreur de saisie / Correction";
+    final reasons = ["Casse / Perte", "Don / Échantillon", "Erreur de saisie / Correction", "Retour Client", "Inventaire Physique"];
+
+    showDialog(
+      context: context,
+      builder: (context) => EnterpriseWidgets.buildPremiumDialog(
+        context,
+        title: "Ajuster le Stock",
+        icon: FluentIcons.box_edit_24_regular,
+        width: 400,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            EnterpriseWidgets.buildPremiumTextField(
+              context,
+              ctrl: ctrl,
+              label: "NOUVELLE QUANTITÉ",
+              icon: FluentIcons.box_24_regular,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              autofocus: true,
+            ),
+            const SizedBox(height: 16),
+            EnterpriseWidgets.buildPremiumDropdown<String>(
+              label: "RAISON DU CHANGEMENT",
+              value: reason,
+              icon: FluentIcons.info_24_regular,
+              items: reasons,
+              itemLabel: (r) => r,
+              onChanged: (val) => reason = val!,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuler")),
+          FilledButton(
+            onPressed: () {
+              setState(() {
+                _quantityController.text = ctrl.text;
+              });
+              Navigator.pop(context);
+            },
+            child: const Text("Confirmer"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 24, bottom: 12),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 8),
+          Text(
+            title.toUpperCase(),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              color: Theme.of(context).colorScheme.primary,
+              letterSpacing: 1.2,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(child: Divider(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1))),
+        ],
+      ),
+    );
   }
 
   @override
@@ -217,7 +301,6 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // --- TYPE SELECTOR (Plus discret) ---
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -225,12 +308,12 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                     segments: const [
                       ButtonSegment<bool>(
                         value: false,
-                        label: Text("Physique", style: TextStyle(fontSize: 12)),
+                        label: Text("PRODUIT PHYSIQUE", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                         icon: Icon(FluentIcons.box_20_regular, size: 16),
                       ),
                       ButtonSegment<bool>(
                         value: true,
-                        label: Text("Service", style: TextStyle(fontSize: 12)),
+                        label: Text("SERVICE / MAIN D'ŒUVRE", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                         icon: Icon(FluentIcons.wrench_20_regular, size: 16),
                       ),
                     ],
@@ -243,23 +326,22 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
 
+              _buildSectionHeader("Identification de l'article", FluentIcons.contact_card_group_24_regular),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // IMAGE (Compacte)
                   Column(
                     children: [
                       GestureDetector(
                         onTap: _pickImage,
                         child: Container(
-                          width: useWideLayout ? 100 : 90,
-                          height: useWideLayout ? 100 : 90,
+                          width: useWideLayout ? 110 : 100,
+                          height: useWideLayout ? 110 : 100,
                           decoration: BoxDecoration(
                             color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
                             image: _imagePath != null
                                 ? DecorationImage(
                                     image: ImageResolver.getProductImage(_imagePath, settings), 
@@ -268,56 +350,36 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                                 : null,
                           ),
                           child: _imagePath == null
-                              ? const Icon(FluentIcons.image_add_24_regular, color: Colors.grey, size: 24)
+                              ? const Icon(FluentIcons.image_add_24_regular, color: Colors.grey, size: 28)
                               : null,
                         ),
                       ),
                       const SizedBox(height: 8),
                       SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
+                        width: useWideLayout ? 110 : 100,
+                        child: OutlinedButton(
                           onPressed: _pickImage,
-                          icon: const Icon(FluentIcons.image_edit_20_regular, size: 16),
-                          label: const Text("MODIFIER PHOTO", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
                           style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            padding: const EdgeInsets.symmetric(vertical: 4),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                           ),
+                          child: const Text("PHOTO", style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900)),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(width: 16),
                   
-                  // BASIC INFO
                   Expanded(
                     child: Column(
                       children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              flex: 2,
-                              child: EnterpriseWidgets.buildPremiumTextField(
-                                context,
-                                ctrl: _nameController,
-                                label: "NOM ARTICLE *",
-                                hint: "Ex: Peinture VIP",
-                                icon: FluentIcons.tag_24_regular,
-                                validator: (v) => v == null || v.trim().isEmpty ? "Requis" : null,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: EnterpriseWidgets.buildPremiumDropdown<String>(
-                                label: "UNITÉ",
-                                value: _selectedUnit,
-                                icon: FluentIcons.ruler_24_regular,
-                                items: _standardUnits,
-                                itemLabel: (u) => u,
-                                onChanged: (val) => setState(() => _selectedUnit = val),
-                              ),
-                            ),
-                          ],
+                        EnterpriseWidgets.buildPremiumTextField(
+                          context,
+                          ctrl: _nameController,
+                          label: "DÉSIGNATION / NOM ARTICLE *",
+                          hint: "Ex: Samsung Galaxy S23",
+                          icon: FluentIcons.tag_24_regular,
+                          validator: (v) => v == null || v.trim().isEmpty ? "Nom requis" : null,
                         ),
                         const SizedBox(height: 12),
                         Row(
@@ -336,7 +398,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                                     ctrl: controller,
                                     focusNode: focusNode,
                                     label: "CATÉGORIE",
-                                    hint: "Ex: Alimentation...",
+                                    hint: "Ex: Smartphones...",
                                     icon: FluentIcons.grid_24_regular,
                                     onChanged: (val) => _categoryController.text = val,
                                   );
@@ -345,11 +407,29 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                             ),
                             const SizedBox(width: 12),
                             Expanded(
-                              child: EnterpriseWidgets.buildPremiumTextField(
-                                context,
-                                ctrl: _barcodeController,
-                                label: "CODE BARRES",
-                                icon: FluentIcons.barcode_scanner_24_regular,
+                              child: Stack(
+                                alignment: Alignment.centerRight,
+                                children: [
+                                  EnterpriseWidgets.buildPremiumTextField(
+                                    context,
+                                    ctrl: _barcodeController,
+                                    label: "CODE BARRES / EAN",
+                                    icon: FluentIcons.barcode_scanner_24_regular,
+                                    hint: "Scanner ou générer...",
+                                  ),
+                                  Positioned(
+                                    right: 4,
+                                    top: 24,
+                                    child: IconButton(
+                                      icon: Icon(FluentIcons.flash_24_regular, color: Theme.of(context).colorScheme.primary, size: 18),
+                                      tooltip: "Générer un code unique",
+                                      onPressed: () async {
+                                        final code = await ref.read(inventoryAutomationServiceProvider).generateUniqueBarcode();
+                                        setState(() => _barcodeController.text = code);
+                                      },
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
@@ -359,9 +439,8 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
 
-              // --- ROW: PRICES (Compact) ---
+              _buildSectionHeader("Finances & Tarification", FluentIcons.money_hand_24_regular),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -369,7 +448,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                     child: EnterpriseWidgets.buildPremiumTextField(
                       context,
                       ctrl: _purchasePriceController,
-                      label: "ACHAT ($currency)",
+                      label: "PRIX D'ACHAT HT ($currency)",
                       icon: FluentIcons.money_hand_24_regular,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     ),
@@ -379,36 +458,117 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                     child: EnterpriseWidgets.buildPremiumTextField(
                       context,
                       ctrl: _sellingPriceController,
-                      label: "VENTE ($currency)",
+                      label: "PRIX DE VENTE ($currency)",
                       icon: FluentIcons.money_24_regular,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                ],
+              ),
+              const SizedBox(height: 12),
+              ValueListenableBuilder(
+                valueListenable: _sellingPriceController,
+                builder: (context, sell, _) {
+                  return ValueListenableBuilder(
+                    valueListenable: _purchasePriceController,
+                    builder: (context, buy, _) {
+                      final s = double.tryParse(sell.text) ?? 0.0;
+                      final b = double.tryParse(buy.text) ?? 0.0;
+                      if (s > 0 && b > 0) {
+                        final margin = s - b;
+                        final isLoss = margin < 0;
+                        return Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: (isLoss ? Colors.red : Colors.green).withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: (isLoss ? Colors.red : Colors.green).withValues(alpha: 0.1)),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(isLoss ? FluentIcons.warning_24_regular : FluentIcons.checkmark_circle_24_regular, 
+                                color: isLoss ? Colors.red : Colors.green, size: 20),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  isLoss 
+                                    ? "ALERTE : Vente à perte ! Votre marge est de ${margin.toStringAsFixed(0)} $currency"
+                                    : "PROFIT ESTIMÉ : Votre marge brute est de ${margin.toStringAsFixed(0)} $currency par unité.",
+                                  style: TextStyle(
+                                    color: isLoss ? Colors.red.shade800 : Colors.green.shade800, 
+                                    fontSize: 12, 
+                                    fontWeight: FontWeight.bold
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  );
+                },
+              ),
+
+              _buildSectionHeader("Logistique & Gestion Stock", FluentIcons.box_edit_24_regular),
+              Row(
+                children: [
                   Expanded(
                     child: EnterpriseWidgets.buildPremiumTextField(
                       context,
                       ctrl: _referenceController,
-                      label: "SKU / RÉF.",
+                      label: "RÉFÉRENCE INTERNE (SKU)",
                       icon: FluentIcons.number_symbol_24_regular,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: EnterpriseWidgets.buildPremiumDropdown<String>(
+                      label: "UNITÉ DE MESURE",
+                      value: _selectedUnit,
+                      icon: FluentIcons.ruler_24_regular,
+                      items: _standardUnits,
+                      itemLabel: (u) => u,
+                      onChanged: (val) => setState(() => _selectedUnit = val),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-
-              // --- STOCK SECTION ---
+              
               if (!_isService) ...[
+                const SizedBox(height: 16),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Expanded(
-                      child: EnterpriseWidgets.buildPremiumTextField(
-                        context,
-                        ctrl: _quantityController,
-                        label: "STOCK",
-                        icon: FluentIcons.box_24_regular,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      flex: 2,
+                      child: Stack(
+                        alignment: Alignment.centerRight,
+                        children: [
+                          EnterpriseWidgets.buildPremiumTextField(
+                            context,
+                            ctrl: _quantityController,
+                            label: "QUANTITÉ EN STOCK",
+                            icon: FluentIcons.box_24_regular,
+                            readOnly: isEditing,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            suffix: isEditing ? Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: Text(_selectedUnit ?? "", style: TextStyle(color: Theme.of(context).hintColor, fontSize: 10, fontWeight: FontWeight.bold)),
+                            ) : null,
+                          ),
+                          if (isEditing)
+                            Positioned(
+                              right: 4,
+                              top: 24,
+                              child: IconButton(
+                                icon: Icon(FluentIcons.edit_settings_24_regular, color: Theme.of(context).colorScheme.primary, size: 18),
+                                tooltip: "Ajuster le stock manuellement",
+                                onPressed: () => _showAdjustmentDialog(),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -416,60 +576,80 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                       child: EnterpriseWidgets.buildPremiumTextField(
                         context,
                         ctrl: _alertThresholdController,
-                        label: "SEUIL",
+                        label: "SEUIL D'ALERTE",
                         icon: FluentIcons.warning_24_regular,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: EnterpriseWidgets.buildPremiumTextField(
-                        context,
-                        ctrl: _locationController,
-                        label: "RANGEMENT",
-                        hint: "A2",
-                        icon: FluentIcons.location_28_regular,
+                        tooltip: "Le système vous alertera quand le stock sera inférieur à cette valeur.",
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
-                if (!isEditing) 
-                  ref.watch(warehouseListProvider).when(
-                    data: (warehouses) {
-                      if (warehouses.isNotEmpty) {
-                        if (_selectedWarehouseId == null || !warehouses.any((w) => w.id == _selectedWarehouseId)) {
-                           _selectedWarehouseId = warehouses.first.id;
-                        }
-                      }
-                      
-                      return EnterpriseWidgets.buildPremiumDropdown<String>(
-                        label: "ENTREPÔT",
-                        value: _selectedWarehouseId,
-                        icon: FluentIcons.building_shop_24_regular,
-                        items: warehouses.map((w) => w.id).toList(),
-                        itemLabel: (id) => warehouses.firstWhere((w) => w.id == id).name,
-                        onChanged: (val) => setState(() => _selectedWarehouseId = val),
-                      );
-                    },
-                    loading: () => const LinearProgressIndicator(),
-                    error: (_, __) => const Text("Erreur"),
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: EnterpriseWidgets.buildPremiumTextField(
+                        context,
+                        ctrl: _locationController,
+                        label: "LOCALISATION (MAGASIN / RAYON)",
+                        hint: "Ex: Rayon A, Étagère 3",
+                        icon: FluentIcons.location_24_regular,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    if (!isEditing) 
+                      Expanded(
+                        child: ref.watch(warehouseListProvider).when(
+                          data: (warehouses) {
+                            if (warehouses.isNotEmpty && 
+                                (_selectedWarehouseId == null || !warehouses.any((w) => w.id == _selectedWarehouseId))) {
+                              final defaultId = warehouses.first.id;
+                              if (_selectedWarehouseId != defaultId) {
+                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                  if (mounted) setState(() => _selectedWarehouseId = defaultId);
+                                });
+                              }
+                            }
+                            
+                            return EnterpriseWidgets.buildPremiumDropdown<String>(
+                              label: "STOCKER DANS",
+                              value: _selectedWarehouseId,
+                              icon: FluentIcons.building_shop_24_regular,
+                              items: warehouses.map((w) => w.id).toList(),
+                              itemLabel: (id) => warehouses.firstWhere((w) => w.id == id).name,
+                              onChanged: (val) => setState(() => _selectedWarehouseId = val),
+                            );
+                          },
+                          loading: () => const LinearProgressIndicator(),
+                          error: (_, __) => const Text("Erreur"),
+                        ),
+                      ),
+                  ],
+                ),
               ],
               
-              const SizedBox(height: 12),
+              _buildSectionHeader("Informations Complémentaires", FluentIcons.text_description_24_regular),
               EnterpriseWidgets.buildPremiumTextField(
                 context,
                 ctrl: _descriptionController,
-                label: "DESCRIPTION",
+                label: "DESCRIPTION / NOTES",
+                hint: "Détails techniques, composition, ou notes internes...",
                 icon: FluentIcons.text_description_24_regular,
-                maxLines: 1,
+                maxLines: 2,
               ),
+              const SizedBox(height: 16),
             ],
           ),
         ),
       ),
       actions: [
+        if (isEditing)
+          TextButton.icon(
+            onPressed: () => _confirmDelete(),
+            icon: const Icon(FluentIcons.delete_20_regular, color: Colors.red, size: 18),
+            label: const Text("Supprimer / Archiver", style: TextStyle(color: Colors.red)),
+          ),
+        const Spacer(),
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: const Text("Annuler"),
@@ -477,12 +657,41 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
         FilledButton.icon(
           onPressed: _save,
           icon: Icon(isEditing ? FluentIcons.save_20_regular : FluentIcons.add_20_regular, size: 18),
-          label: Text(isEditing ? "Enregistrer" : "Ajouter", style: const TextStyle(fontSize: 13)),
+          label: Text(isEditing ? "Enregistrer les modifications" : "Ajouter au stock", style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
           style: FilledButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           ),
         ),
       ],
+    );
+  }
+
+  void _confirmDelete() {
+    showDialog(
+      context: context,
+      builder: (context) => EnterpriseWidgets.buildPremiumDialog(
+        context,
+        title: "Confirmer la suppression",
+        icon: FluentIcons.warning_24_regular,
+        width: 400,
+        child: const Text(
+          "Voulez-vous supprimer cet article ?\n\nNote : Si l'article possède un historique de vente, il sera automatiquement ARCHIVÉ pour préserver vos rapports comptables.",
+          style: TextStyle(fontSize: 13),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuler")),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              await ref.read(productListProvider.notifier).deleteProduct(widget.product!.id);
+              if (!context.mounted) return;
+              Navigator.pop(context); // Ferme le dialogue de confirmation
+              Navigator.pop(context); // Ferme le formulaire produit
+            },
+            child: const Text("Confirmer"),
+          ),
+        ],
+      ),
     );
   }
 }

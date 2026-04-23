@@ -9,9 +9,11 @@ class PremiumSettingsWidgets {
   // ── 1. CARTES ET SECTIONS ──
 
   /// Carte principale avec effet de flou optionnel
-  static Widget buildCard(BuildContext context, {required Widget child}) {
+  static Widget buildCard(BuildContext context, {required Widget child, EdgeInsets? padding, EdgeInsets? margin}) {
     final c = DashColors.of(context);
     return Container(
+      margin: margin,
+      padding: padding ?? const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: c.surface,
         borderRadius: BorderRadius.circular(12),
@@ -69,20 +71,20 @@ class PremiumSettingsWidgets {
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(6),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, color: color, size: 16),
+            child: Icon(icon, color: color, size: 20),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: c.textPrimary)),
-                Text(subtitle, style: TextStyle(fontSize: 9.5, color: c.textMuted)),
+                Text(title, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: c.textPrimary)),
+                Text(subtitle, style: TextStyle(fontSize: 12, color: c.textMuted)),
               ],
             ),
           ),
@@ -120,9 +122,13 @@ class PremiumSettingsWidgets {
         children: [
           Container(width: 6, height: 6, decoration: BoxDecoration(shape: BoxShape.circle, color: color)),
           const SizedBox(width: 6),
-          Text(
-            active ? activeLabel : inactiveLabel,
-            style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: color),
+          Flexible(
+            child: Text(
+              active ? activeLabel : inactiveLabel,
+              style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: color),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ],
       ),
@@ -151,13 +157,13 @@ class PremiumSettingsWidgets {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 2, bottom: 4),
-          child: Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: c.textSecondary, letterSpacing: 0.2)),
+          padding: const EdgeInsets.only(left: 2, bottom: 6),
+          child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: c.textSecondary, letterSpacing: 0.3)),
         ),
         Container(
           decoration: BoxDecoration(
             color: c.isDark ? Colors.black.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.6),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(color: c.isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.06)),
           ),
           child: TextField(
@@ -169,23 +175,23 @@ class PremiumSettingsWidgets {
             onChanged: (_) => onChanged(),
             decoration: InputDecoration(
               hintText: hint,
-              hintStyle: TextStyle(fontSize: 10, color: c.textMuted.withValues(alpha: 0.5)),
-              prefixIcon: Icon(icon, color: color.withValues(alpha: 0.7), size: 14),
+              hintStyle: TextStyle(fontSize: 13, color: c.textMuted.withValues(alpha: 0.5)),
+              prefixIcon: Icon(icon, color: color.withValues(alpha: 0.7), size: 18),
               suffixIcon: isPassword && onTogglePassword != null
                   ? IconButton(
                       icon: Icon(
                         (showPassword ?? false) ? FluentIcons.eye_off_16_regular : FluentIcons.eye_16_regular,
-                        size: 14, color: c.textMuted,
+                        size: 18, color: c.textMuted,
                       ),
                       onPressed: onTogglePassword,
-                      splashRadius: 16,
+                      splashRadius: 20,
                     )
                   : null,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
               border: InputBorder.none,
               isDense: true,
             ),
-            style: TextStyle(fontSize: 11, color: c.textPrimary, fontWeight: FontWeight.w600),
+            style: TextStyle(fontSize: 14, color: c.textPrimary, fontWeight: FontWeight.w600),
           ),
         ),
       ],
@@ -199,38 +205,43 @@ class PremiumSettingsWidgets {
     required String subtitle,
     required bool value,
     required ValueChanged<bool> onChanged,
-    required Color activeColor,
+    required Color activeThumbColor,
     required IconData icon,
   }) {
     final c = DashColors.of(context);
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: value ? activeColor.withValues(alpha: 0.05) : (c.isDark ? Colors.black.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.02)),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: value ? activeColor.withValues(alpha: 0.2) : (c.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05))),
+        color: value ? activeThumbColor.withValues(alpha: 0.05) : (c.isDark ? Colors.black.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.02)),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: value ? activeThumbColor.withValues(alpha: 0.2) : (c.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05))),
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(6),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: value ? activeColor.withValues(alpha: 0.15) : c.textMuted.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(6),
+              color: value ? activeThumbColor.withValues(alpha: 0.15) : c.textMuted.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, color: value ? activeColor : c.textMuted, size: 14),
+            child: Icon(icon, color: value ? activeThumbColor : c.textMuted, size: 18),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 11, color: value ? c.textPrimary : c.textSecondary)),
-                Text(subtitle, style: TextStyle(fontSize: 8.5, color: c.textMuted)),
+                Text(title, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: value ? c.textPrimary : c.textSecondary)),
+                Text(subtitle, style: TextStyle(fontSize: 11, color: c.textMuted)),
               ],
             ),
           ),
-          Switch.adaptive(value: value, onChanged: onChanged, activeTrackColor: activeColor),
+          Switch.adaptive(
+            value: value, 
+            onChanged: onChanged, 
+            activeTrackColor: activeThumbColor.withValues(alpha: 0.4),
+            activeThumbColor: activeThumbColor,
+          ),
         ],
       ),
     );
@@ -250,14 +261,14 @@ class PremiumSettingsWidgets {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 2, bottom: 4),
-          child: Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: c.textSecondary, letterSpacing: 0.2)),
+          padding: const EdgeInsets.only(left: 2, bottom: 6),
+          child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: c.textSecondary, letterSpacing: 0.3)),
         ),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
           decoration: BoxDecoration(
             color: c.isDark ? Colors.black.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.6),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(color: c.isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.06)),
           ),
           child: DropdownButtonHideUnderline(
@@ -297,13 +308,19 @@ class PremiumSettingsWidgets {
           highlightColor: Colors.white.withValues(alpha: 0.1),
           splashColor: Colors.white.withValues(alpha: 0.2),
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, color: Colors.white, size: 14),
-                const SizedBox(width: 8),
-                Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 0.5)),
+                Icon(icon, color: Colors.white, size: 18),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: Text(
+                    label,
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 0.5),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
           ),
@@ -316,21 +333,21 @@ class PremiumSettingsWidgets {
   static Widget buildInfoBox(BuildContext context, {required String text, required Color color, IconData icon = FluentIcons.info_16_regular}) {
     final c = DashColors.of(context);
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: color.withValues(alpha: 0.15)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 14, color: color.withValues(alpha: 0.7)),
-          const SizedBox(width: 8),
+          Icon(icon, size: 18, color: color.withValues(alpha: 0.7)),
+          const SizedBox(width: 10),
           Expanded(
             child: Text(
               text,
-              style: TextStyle(fontSize: 9, color: c.textSecondary, fontWeight: FontWeight.w600, height: 1.4),
+              style: TextStyle(fontSize: 13, color: c.textSecondary, fontWeight: FontWeight.w600, height: 1.4),
             ),
           ),
         ],

@@ -3,16 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:danaya_plus/core/database/database_service.dart';
 import 'package:danaya_plus/features/srm/domain/models/purchase_order.dart';
-import 'package:danaya_plus/features/inventory/domain/models/product.dart';
 import 'package:danaya_plus/features/finance/domain/models/financial_account.dart';
 import 'package:danaya_plus/features/finance/providers/treasury_provider.dart';
 import 'package:danaya_plus/features/inventory/providers/product_providers.dart';
 import 'package:danaya_plus/features/srm/providers/supplier_providers.dart';
 import 'package:danaya_plus/features/auth/application/auth_service.dart';
 import 'package:danaya_plus/features/finance/providers/session_providers.dart';
-import 'package:danaya_plus/features/settings/providers/shop_settings_provider.dart';
-import 'package:danaya_plus/features/inventory/application/inventory_automation_service.dart';
-import 'package:danaya_plus/features/inventory/data/product_repository.dart';
 import 'package:danaya_plus/core/network/client_sync_service.dart';
 
 final srmServiceProvider = Provider<SrmService>((ref) {
@@ -205,25 +201,6 @@ class SrmService {
     try {
       _ref.read(clientSyncProvider).syncPendingAuditData();
     } catch (_) {}
-
-    // Auto-Labels
-    try {
-      final settings = await _ref.read(shopSettingsProvider.future);
-      if (settings.autoPrintLabelsOnStockIn) {
-        final automation = _ref.read(inventoryAutomationServiceProvider);
-        final List<Product> printQueue = [];
-        for (final item in items) {
-          final product = await _ref.read(productRepositoryProvider).getById(item.productId);
-          if (product != null) {
-            printQueue.addAll(List.generate(item.quantity.toInt(), (_) => product));
-          }
-        }
-        if (printQueue.isNotEmpty) {
-          await automation.printBarcodeLabels(printQueue);
-        }
-      }
-    } catch (e) {
-      debugPrint("⚠️ Auto-print failed: $e");
-    }
   }
+
 }

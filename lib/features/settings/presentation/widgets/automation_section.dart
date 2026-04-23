@@ -11,8 +11,6 @@ class AutomationSettingsSection extends StatelessWidget {
   final TextEditingController refPrefixCtrl;
   final ReferenceGenerationModel refModel;
   final ValueChanged<ReferenceGenerationModel?> onRefModelChanged;
-  final BarcodeGenerationModel barcodeModel;
-  final ValueChanged<BarcodeGenerationModel?> onBarcodeModelChanged;
   final bool autoPrintLabelsOnStockIn;
   final ValueChanged<bool> onAutoPrintLabelsOnStockInChanged;
   final bool showAssistant;
@@ -30,8 +28,6 @@ class AutomationSettingsSection extends StatelessWidget {
     required this.refPrefixCtrl,
     required this.refModel,
     required this.onRefModelChanged,
-    required this.barcodeModel,
-    required this.onBarcodeModelChanged,
     required this.autoPrintLabelsOnStockIn,
     required this.onAutoPrintLabelsOnStockInChanged,
     required this.showAssistant,
@@ -70,7 +66,7 @@ class AutomationSettingsSection extends StatelessWidget {
                 subtitle: "Crée un ID unique si le champ est vide à la création",
                 value: useAutoRef,
                 onChanged: onUseAutoRefChanged,
-                activeColor: c.blue,
+                activeThumbColor: c.blue,
                 icon: FluentIcons.text_bullet_list_tree_16_regular,
               ),
               if (useAutoRef) ...[
@@ -99,11 +95,16 @@ class AutomationSettingsSection extends StatelessWidget {
                         value: refModel,
                         items: ReferenceGenerationModel.values.map((m) {
                           String label = "";
-                          if (m == ReferenceGenerationModel.categorical) label = "Catégoriel (PRFX-CAT-001)";
-                          else if (m == ReferenceGenerationModel.sequential) label = "Séquentiel (PRFX-0001)";
-                          else if (m == ReferenceGenerationModel.random) label = "Aléatoire (PRFX-A1B2)";
-                          else label = "Horodaté (PRFX-123456)";
-                          return DropdownMenuItem(value: m, child: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)));
+                          if (m == ReferenceGenerationModel.categorical) {
+                            label = "Catégoriel (PRFX-CAT-001)";
+                          } else if (m == ReferenceGenerationModel.sequential) {
+                            label = "Séquentiel (PRFX-0001)";
+                          } else if (m == ReferenceGenerationModel.random) {
+                            label = "Aléatoire (PRFX-A1B2)";
+                          } else {
+                            label = "Horodaté (PRFX-123456)";
+                          }
+                          return DropdownMenuItem(value: m, child: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)));
                         }).toList(),
                         onChanged: onRefModelChanged,
                         color: c.blue,
@@ -118,46 +119,7 @@ class AutomationSettingsSection extends StatelessWidget {
           ),
         ),
 
-        const SizedBox(height: 24),
 
-        // ── 2. CODES-BARRES ──
-        PremiumSettingsWidgets.buildSectionHeader(
-          context,
-          icon: FluentIcons.barcode_scanner_24_filled,
-          title: "Normes & Codes-Barres",
-          subtitle: "Format par défaut des étiquettes et standards",
-          color: c.amber,
-        ),
-        const SizedBox(height: 12),
-        PremiumSettingsWidgets.buildCard(
-          context,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              PremiumSettingsWidgets.buildCompactDropdown<BarcodeGenerationModel>(
-                context,
-                label: "Standard de codification",
-                value: barcodeModel,
-                items: BarcodeGenerationModel.values.map((m) {
-                  String label = "";
-                  if (m == BarcodeGenerationModel.ean13) label = "EAN-13 (Standard Retail)";
-                  else if (m == BarcodeGenerationModel.upcA) label = "UPC-A (Standard US)";
-                  else if (m == BarcodeGenerationModel.code128) label = "Code 128 (Alpha-Numérique)";
-                  else label = "Numérique 9 (Optimisé interne)";
-                  return DropdownMenuItem(value: m, child: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)));
-                }).toList(),
-                onChanged: onBarcodeModelChanged,
-                color: c.amber,
-              ),
-              const SizedBox(height: 14),
-              PremiumSettingsWidgets.buildInfoBox(
-                context,
-                text: "Utilisé uniquement pour les nouveaux articles lors de la génération automatique d'un code-barre.",
-                color: c.amber,
-              ),
-            ],
-          ),
-        ),
 
         const SizedBox(height: 24),
 
@@ -189,7 +151,7 @@ class AutomationSettingsSection extends StatelessWidget {
                     case RoundingMode.nearest50: label = "Au 50 le plus proche (ex: 150, 200)"; break;
                     case RoundingMode.nearest100: label = "Au 100 le plus proche (ex: 100, 200)"; break;
                   }
-                  return DropdownMenuItem(value: m, child: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)));
+                  return DropdownMenuItem(value: m, child: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)));
                 }).toList(),
                 onChanged: onRoundingModeChanged,
                 color: c.rose,
@@ -225,7 +187,7 @@ class AutomationSettingsSection extends StatelessWidget {
                 subtitle: "Lance les étiquettes dès la validation du bon d'entrée",
                 value: autoPrintLabelsOnStockIn,
                 onChanged: onAutoPrintLabelsOnStockInChanged,
-                activeColor: c.violet,
+                activeThumbColor: c.violet,
                 icon: FluentIcons.print_16_regular,
               ),
               const SizedBox(height: 14),
@@ -235,7 +197,7 @@ class AutomationSettingsSection extends StatelessWidget {
                 subtitle: "Affiche ou masque le bouton de l'assistant IA",
                 value: showAssistant,
                 onChanged: onShowAssistantChanged,
-                activeColor: c.violet,
+                activeThumbColor: c.violet,
                 icon: FluentIcons.bot_24_regular,
               ),
               if (showAssistant) ...[
@@ -308,12 +270,12 @@ class AutomationSettingsSection extends StatelessWidget {
                   children: [
                     Text(
                       levelName,
-                      style: TextStyle(fontWeight: FontWeight.w900, color: levelColor, fontSize: 11, letterSpacing: 1),
+                      style: TextStyle(fontWeight: FontWeight.w900, color: levelColor, fontSize: 14, letterSpacing: 1),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       levelDesc,
-                      style: TextStyle(fontSize: 10, color: c.textSecondary, fontStyle: FontStyle.italic),
+                      style: TextStyle(fontSize: 12, color: c.textSecondary, fontStyle: FontStyle.italic),
                     ),
                   ],
                 ),
@@ -344,7 +306,7 @@ class AutomationSettingsSection extends StatelessWidget {
           Center(
             child: Text(
               "Ajustez la puissance et l'autonomie de l'IA",
-              style: TextStyle(fontSize: 9, color: c.textMuted, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 12, color: c.textMuted, fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -386,7 +348,7 @@ class AutomationSettingsSection extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("APERCU DE LA PROCHAINE RÉFÉRENCE", style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900, color: c.textMuted, letterSpacing: 0.5)),
+                Text("APERCU DE LA PROCHAINE RÉFÉRENCE", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: c.textMuted, letterSpacing: 0.5)),
                 const SizedBox(height: 2),
                 Text(preview, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: c.blue, letterSpacing: 1)),
               ],

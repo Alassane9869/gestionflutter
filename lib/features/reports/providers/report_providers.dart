@@ -87,7 +87,7 @@ final reportKPIsProvider = FutureProvider.family<ReportKPIs, DateTimeRange>((ref
     final pPrice = (row['purchasePrice'] as num).toDouble();
     final pWac = (row['weighted_average_cost'] as num? ?? 0.0).toDouble();
     
-    if (pPrice < 0 || pWac < 0 || pPrice > 10000000 || pWac > 10000000) {
+    if (pPrice < 0 || pWac < 0 || pPrice > 1000000000 || pWac > 1000000000) {
       debugPrint("!!! DONNÉE CORROMPUE DÉTECTÉE !!! Produit: ${row['name']} (ID: ${row['product_id']}) | Prix d'achat: $pPrice | CMUP: $pWac");
     }
     

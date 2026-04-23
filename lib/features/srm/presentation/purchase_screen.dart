@@ -19,6 +19,8 @@ import 'package:danaya_plus/core/widgets/access_denied_screen.dart';
 import 'package:danaya_plus/core/database/database_service.dart';
 import 'package:danaya_plus/core/utils/date_formatter.dart';
 import 'package:danaya_plus/features/inventory/presentation/dashboard_screen.dart';
+import 'package:danaya_plus/features/inventory/presentation/widgets/label_printing_utils.dart';
+import 'package:danaya_plus/features/inventory/data/product_repository.dart';
 
 class PurchaseScreen extends ConsumerStatefulWidget {
   final Supplier? supplier;
@@ -734,6 +736,28 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> with SingleTick
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text("FERMER"),
+          ),
+          FilledButton.icon(
+            onPressed: () async {
+              final List<Product> printQueue = [];
+              final repo = ref.read(productRepositoryProvider);
+              for (final item in items) {
+                final product = await repo.getById(item.productId);
+                if (product != null) {
+                  printQueue.addAll(List.generate(item.qty.toInt(), (_) => product));
+                }
+              }
+              if (!context.mounted) return;
+              await LabelPrintingUtils.confirmAndPrintLabels(
+                context,
+                ref,
+                products: printQueue,
+                sourceAction: "Arrivée de stock (Achat ${order.reference})",
+              );
+            },
+            icon: const Icon(FluentIcons.barcode_scanner_24_regular), 
+            label: const Text("IMPRIMER ÉTIQUETTES"),
+            style: FilledButton.styleFrom(backgroundColor: Colors.orange),
           ),
           const SizedBox(width: 12),
           FilledButton.icon(

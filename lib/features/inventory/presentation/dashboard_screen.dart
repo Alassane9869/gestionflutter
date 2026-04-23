@@ -1325,10 +1325,12 @@ class _LogoutItem extends StatelessWidget {
             horizontal: isCollapsed ? 0 : 8,
             vertical: 6,
           ),
+          child: ClipRect(
           child: Row(
             mainAxisAlignment: isCollapsed
                 ? MainAxisAlignment.center
                 : MainAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(
                 FluentIcons.sign_out_20_regular,
@@ -1337,17 +1339,22 @@ class _LogoutItem extends StatelessWidget {
               ),
               if (!isCollapsed) ...[
                 const SizedBox(width: 10),
-                Text(
-                  "Déconnexion",
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                    color: AppTheme.errorClr,
+                Flexible(
+                  child: Text(
+                    "Déconnexion",
+                    maxLines: 1,
+                    overflow: TextOverflow.clip,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: AppTheme.errorClr,
+                    ),
                   ),
                 ),
               ],
             ],
           ),
+        ),
         ),
       ),
     );

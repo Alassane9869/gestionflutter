@@ -31,8 +31,8 @@ class HardwareService {
       // On cible les classes HIDClass et USB pour les accessoires POS
       final result = await Process.run('powershell', [
         '-Command',
-        "Get-PnpDevice -PresentOnly | Where-Object { \$_.Class -eq 'HIDClass' -or \$_.Class -eq 'USB' -or \$_.Class -eq 'Ports' } | Select-Object FriendlyName, Status, Class | ConvertTo-Json"
-      ]);
+        "\$OutputEncoding = [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Get-PnpDevice -PresentOnly | Where-Object { \$_.Class -eq 'HIDClass' -or \$_.Class -eq 'USB' -or \$_.Class -eq 'Ports' } | Select-Object FriendlyName, Status, Class | ConvertTo-Json"
+      ], stdoutEncoding: utf8, stderrEncoding: utf8);
 
       if (result.exitCode != 0 || result.stdout.toString().isEmpty) return [];
 
@@ -60,8 +60,8 @@ class HardwareService {
     try {
       final result = await Process.run('powershell', [
         '-Command',
-        "Get-Printer | Select-Object Name, PrinterStatus, Default | ConvertTo-Json"
-      ]);
+        "\$OutputEncoding = [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Get-Printer | Select-Object Name, PrinterStatus, Default | ConvertTo-Json"
+      ], stdoutEncoding: utf8, stderrEncoding: utf8);
 
       if (result.exitCode != 0 || result.stdout.toString().isEmpty) return [];
 
@@ -102,8 +102,8 @@ class HardwareService {
       
       await Process.run('powershell', [
         '-Command',
-        command
-      ]);
+        "\$OutputEncoding = [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $command"
+      ], stdoutEncoding: utf8, stderrEncoding: utf8);
     } catch (e) {
       debugPrint('❌ Erreur ouverture tiroir: $e');
     }

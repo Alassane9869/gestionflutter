@@ -103,20 +103,20 @@ class NetworkSettingsSection extends ConsumerWidget {
               Text(
                 label, 
                 style: TextStyle(
-                  fontSize: 12, 
+                  fontSize: 16, 
                   fontWeight: FontWeight.w900, 
                   color: color, 
-                  letterSpacing: 0.5
-                )
+                  letterSpacing: 0.5,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
                 desc, 
                 style: TextStyle(
-                  fontSize: 10, 
+                  fontSize: 14, 
                   fontWeight: FontWeight.bold, 
                   color: isSelected ? color.withValues(alpha: 0.7) : c.textSecondary,
-                )
+                ),
               ),
             ],
           ),
@@ -151,7 +151,7 @@ class NetworkSettingsSection extends ConsumerWidget {
                   icon: FluentIcons.wifi_1_24_regular,
                 ),
                 loading: () => const LinearProgressIndicator(),
-                error: (e, _) => Text("erreur: $e", style: const TextStyle(fontSize: 10)),
+                error: (e, _) => Text("erreur: $e", style: const TextStyle(fontSize: 13)),
               ),
             ),
             const SizedBox(width: 16),
@@ -233,11 +233,11 @@ class NetworkSettingsSection extends ConsumerWidget {
              child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("CLÉ DE SYNCHRONISATION", style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: c.violet.withValues(alpha: 0.8), letterSpacing: 0.5)),
+                Text("CLÉ DE SYNCHRONISATION", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: c.violet.withValues(alpha: 0.8), letterSpacing: 0.5)),
                 const SizedBox(height: 4),
                 SelectableText(
                   key,
-                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: c.violet, letterSpacing: 1),
+                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: c.violet, letterSpacing: 1),
                 ),
               ],
             ),
@@ -258,7 +258,7 @@ class NetworkSettingsSection extends ConsumerWidget {
           children: [
             PremiumSettingsWidgets.buildIconBadge(icon: FluentIcons.globe_24_filled, color: c.blue),
             const SizedBox(width: 12),
-            const Text("Accès Distant Elite", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+            const Text("Accès Distant Elite", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
           ],
         ),
         content: Column(
@@ -267,7 +267,7 @@ class NetworkSettingsSection extends ConsumerWidget {
           children: [
             Text(
               "Optimisez votre mobilité avec une connexion sécurisée.",
-              style: TextStyle(fontSize: 12, color: c.textMuted, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 15, color: c.textMuted, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 20),
             _buildEliteStep(c, "1", "Tailscale VPN", "Installez Tailscale sur tous vos appareils pour un réseau maillé sécurisé."),
@@ -294,16 +294,16 @@ class NetworkSettingsSection extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(color: c.blue.withValues(alpha: 0.1), shape: BoxShape.circle),
-            child: Text(num, style: TextStyle(fontSize: 12, color: c.blue, fontWeight: FontWeight.w900)),
+            child: Text(num, style: TextStyle(fontSize: 14, color: c.blue, fontWeight: FontWeight.w900)),
           ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start, 
               children: [
-                Text(title, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: c.textPrimary)), 
+                Text(title, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: c.textPrimary)), 
                 const SizedBox(height: 2),
-                Text(desc, style: TextStyle(fontSize: 11, color: c.textSecondary, fontWeight: FontWeight.bold))
+                Text(desc, style: TextStyle(fontSize: 14, color: c.textSecondary, fontWeight: FontWeight.bold))
               ]
             )
           ),
@@ -330,7 +330,7 @@ class _RemoteHelpButton extends StatelessWidget {
           children: [
             Icon(FluentIcons.globe_16_filled, size: 14, color: c.violet),
             const SizedBox(width: 8),
-            Text("Guide Accès Distant", style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: c.violet)),
+            Text("Guide Accès Distant", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: c.violet)),
           ],
         ),
       ),
@@ -423,7 +423,7 @@ class _ServerStatusBadge extends ConsumerWidget {
         children: [
           if (pulsing) _PulseDot(color: color) else Icon(FluentIcons.circle_12_filled, color: color, size: 8),
           const SizedBox(width: 8),
-          Text(label, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+          Text(label, style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
         ],
       ),
     );

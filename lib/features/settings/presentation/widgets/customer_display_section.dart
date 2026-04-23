@@ -126,9 +126,9 @@ class CustomerDisplaySettingsSection extends ConsumerWidget {
                     context,
                     child: Column(
                       children: [
-                        PremiumSettingsWidgets.buildCompactSwitch(context, title: "Ambiance Sonore", subtitle: "Bruitages et confirmations audio", value: enableSounds, onChanged: onEnableSoundsChanged, activeColor: c.blue, icon: FluentIcons.speaker_2_20_regular),
+                        PremiumSettingsWidgets.buildCompactSwitch(context, title: "Ambiance Sonore", subtitle: "Bruitages et confirmations audio", value: enableSounds, onChanged: onEnableSoundsChanged, activeThumbColor: c.blue, icon: FluentIcons.speaker_2_20_regular),
                         const Divider(),
-                        PremiumSettingsWidgets.buildCompactSwitch(context, title: "Moteur DanayaFX (Premium)", subtitle: "Rendu 100% hors-ligne ultra-performant", value: use3D, onChanged: onUse3DChanged, activeColor: c.violet, icon: FluentIcons.auto_fit_height_24_regular),
+                        PremiumSettingsWidgets.buildCompactSwitch(context, title: "Moteur DanayaFX (Premium)", subtitle: "Rendu 100% hors-ligne ultra-performant", value: use3D, onChanged: onUse3DChanged, activeThumbColor: c.violet, icon: FluentIcons.auto_fit_height_24_regular),
                       ],
                     ),
                   ),
@@ -152,13 +152,13 @@ class CustomerDisplaySettingsSection extends ConsumerWidget {
                     context,
                     child: Column(
                       children: [
-                        PremiumSettingsWidgets.buildCompactSwitch(context, title: "Activer les messages", subtitle: "Les messages s'affichent si la caisse est inactive.", value: enableTicker, onChanged: onEnableTickerChanged, activeColor: c.emerald, icon: FluentIcons.text_bullet_list_20_regular),
+                        PremiumSettingsWidgets.buildCompactSwitch(context, title: "Activer les messages", subtitle: "Les messages s'affichent si la caisse est inactive.", value: enableTicker, onChanged: onEnableTickerChanged, activeThumbColor: c.emerald, icon: FluentIcons.text_bullet_list_20_regular),
                         if (enableTicker) ...[
                           const SizedBox(height: 16),
                           TextField(
                             controller: messagesCtrl,
                             maxLines: 3,
-                            style: TextStyle(fontSize: 12, fontFamily: 'monospace', color: c.textPrimary),
+                            style: TextStyle(fontSize: 14, fontFamily: 'monospace', color: c.textPrimary),
                             decoration: InputDecoration(
                               hintText: "Saisissez un message par ligne...",
                               hintStyle: TextStyle(color: c.textMuted),
@@ -191,9 +191,9 @@ class CustomerDisplaySettingsSection extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("Tester la communication", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: c.textPrimary)),
+                    Text("Tester la communication", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: c.textPrimary)),
                     const SizedBox(height: 4),
-                    Text("Vérifiez le fonctionnement instantané sur vos écrans.", style: TextStyle(fontSize: 10, color: c.textSecondary)),
+                    Text("Vérifiez le fonctionnement instantané sur vos écrans.", style: TextStyle(fontSize: 13, color: c.textSecondary)),
                   ],
                 ),
               ),
@@ -296,7 +296,7 @@ class _ThemeCard extends StatelessWidget {
                       child: Text("Danaya+", 
                         style: TextStyle(
                           color: colors.first.computeLuminance() > 0.5 ? Colors.black87 : Colors.white,
-                          fontSize: 10,
+                          fontSize: 12,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 1,
                         )),
@@ -313,9 +313,9 @@ class _ThemeCard extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(name, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: isSelected ? c.blue : c.textPrimary, letterSpacing: 0.5)),
+                          Text(name, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, color: isSelected ? c.blue : c.textPrimary, letterSpacing: 0.5)),
                           const SizedBox(height: 2),
-                          Text(desc, style: TextStyle(fontSize: 9, color: c.textMuted, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
+                          Text(desc, style: TextStyle(fontSize: 10, color: c.textMuted, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
                         ],
                       ),
                     ),

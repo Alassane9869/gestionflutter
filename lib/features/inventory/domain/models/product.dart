@@ -15,6 +15,7 @@ class Product {
   final bool isSynced;
   final String? unit;
   final bool isService;
+  final bool isActive;
 
   Product({
     required this.id,
@@ -33,6 +34,7 @@ class Product {
     this.isSynced = false,
     this.unit,
     this.isService = false,
+    this.isActive = true,
   });
 
   double get margin => sellingPrice - (weightedAverageCost > 0 ? weightedAverageCost : purchasePrice);
@@ -59,6 +61,7 @@ class Product {
       'is_synced': isSynced ? 1 : 0,
       'unit': unit,
       'is_service': isService ? 1 : 0,
+      'is_active': isActive ? 1 : 0,
     };
   }
 
@@ -80,6 +83,7 @@ class Product {
       isSynced: (map['is_synced'] as num? ?? 0) == 1,
       unit: map['unit'] as String?,
       isService: (map['is_service'] as num? ?? 0) == 1,
+      isActive: (map['is_active'] as num? ?? 1) == 1,
     );
   }
 
@@ -100,6 +104,7 @@ class Product {
     bool? isSynced,
     String? unit,
     bool? isService,
+    bool? isActive,
   }) {
     return Product(
       id: id ?? this.id,
@@ -118,6 +123,7 @@ class Product {
       isSynced: isSynced ?? this.isSynced,
       unit: unit ?? this.unit,
       isService: isService ?? this.isService,
+      isActive: isActive ?? this.isActive,
     );
   }
 }

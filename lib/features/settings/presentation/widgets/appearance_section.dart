@@ -107,13 +107,13 @@ class AppearanceSettingsSection extends ConsumerWidget {
             children: [
               PremiumSettingsWidgets.buildIconBadge(icon: icon, color: active ? color : c.textMuted),
               const SizedBox(height: 12),
-              Text(label, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: active ? color : c.textSecondary)),
+              Text(label, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: active ? color : c.textSecondary)),
               const SizedBox(height: 6),
               if (active)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(8)),
-                  child: const Text("ACTIF", style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
+                  child: const Text("ACTIF", style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
                 ),
             ],
           ),
@@ -150,7 +150,7 @@ class AppearanceSettingsSection extends ConsumerWidget {
             Expanded(
               child: Text(
                 option.name.toUpperCase(),
-                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: isSelected ? color : c.textSecondary, letterSpacing: 0.5),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: isSelected ? color : c.textSecondary, letterSpacing: 0.5),
               ),
             ),
             if (isSelected) Icon(FluentIcons.checkmark_circle_16_filled, size: 16, color: color),

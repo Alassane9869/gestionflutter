@@ -555,7 +555,7 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
                           Switch(
                             value: isDefault,
                             onChanged: (v) => setDS(() => isDefault = v),
-                            activeColor: typeColor,
+                            activeThumbColor: typeColor,
                           ),
                         ],
                       ),

@@ -41,12 +41,12 @@ class SystemHealthDashboard extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildHealthScoreCard(context, c, ref, state, notifier),
-        const SizedBox(height: 20),
-        _buildDiagnosticsGrid(context, c, state),
+        const SizedBox(height: 16),
+        _buildDiagnosticsGrid(context, c, state, ref),
         
-        // ── SECTION CACHÉE : Ne s'affiche QUE si déverrouillée ──
+        // ── SECTION CACHÉE ──
         if (isUnlocked) ...[
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           _buildAdvancedActions(context, c, ref, state, notifier, isUnlocked)
               .animate()
               .fadeIn(duration: 500.ms)
@@ -99,12 +99,12 @@ class SystemHealthDashboard extends ConsumerWidget {
                   behavior: HitTestBehavior.opaque,
                   child: const Text(
                     "SANTÉ GLOBALE DU SYSTÈME", 
-                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1.0)
+                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1.0)
                   ),
                 ),
                 Text(
                   state.currentActionLabel ?? "En attente • Prêt pour le diagnostic",
-                  style: TextStyle(fontSize: 11, color: c.textMuted, fontWeight: FontWeight.w600),
+                  style: TextStyle(fontSize: 14, color: c.textMuted, fontWeight: FontWeight.w600),
                 ),
                 if (state.isOptimizing || state.isScanning) ...[
                    const SizedBox(height: 12),
@@ -135,7 +135,7 @@ class SystemHealthDashboard extends ConsumerWidget {
     );
   }
 
-  Widget _buildDiagnosticsGrid(BuildContext context, DashColors c, SystemHealthState state) {
+  Widget _buildDiagnosticsGrid(BuildContext context, DashColors c, SystemHealthState state, WidgetRef ref) {
     final result = state.lastScannerResult;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -152,6 +152,7 @@ class SystemHealthDashboard extends ConsumerWidget {
                 color: c.blue,
                 value: result != null ? "${result['db_size_mb']} MB" : "--",
                 desc: "Taille totale sur disque",
+                onTap: () {}, // Future improvement: optimization tips
               ),
               const SizedBox(height: 16),
               _buildBentoCard(
@@ -163,11 +164,12 @@ class SystemHealthDashboard extends ConsumerWidget {
                 color: (result != null && result['stock_issues'] == 0) ? c.emerald : c.amber,
                 value: result != null ? "${result['stock_issues']} Erreurs" : "--",
                 desc: "Différence Stock vs Mouvements",
+                onTap: state.safeStockIssues.isNotEmpty ? () => _showIntegrityDetails(context, c, state, ref) : null,
               ),
             ],
           ),
         ),
-        const SizedBox(width: 16),
+        const SizedBox(width: 12),
         Expanded(
           child: Column(
             children: [
@@ -179,18 +181,20 @@ class SystemHealthDashboard extends ConsumerWidget {
                 icon: FluentIcons.image_copy_24_filled,
                 color: c.violet,
                 value: result != null ? "${result['orphan_images']} Orphelins" : "--",
-                desc: "Images non référencées",
+                desc: "Images orphelines",
+                onTap: state.safeOrphanImages.isNotEmpty ? () => _showMediaDetails(context, c, state, ref) : null,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               _buildBentoCard(
                 context: context,
                 c: c,
-                title: "HISTORIQUE D'AUDIT",
-                subtitle: "Optimisation Logs",
+                title: "AUDIT LOGS",
+                subtitle: "Flux Système",
                 icon: FluentIcons.history_24_filled,
                 color: c.amber,
                 value: "STABLE",
-                desc: "Prêt pour l'archivage",
+                desc: "Prêt pour archivage",
+                onTap: () {},
               ),
             ],
           ),
@@ -208,26 +212,45 @@ class SystemHealthDashboard extends ConsumerWidget {
     required Color color,
     required String value,
     required String desc,
+    VoidCallback? onTap,
   }) {
     return PremiumSettingsWidgets.buildCard(
       context,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              PremiumSettingsWidgets.buildIconBadge(icon: icon, color: color),
-              const SizedBox(width: 10),
-              Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 0.5)),
-            ],
+      padding: EdgeInsets.zero,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          hoverColor: color.withValues(alpha: 0.05),
+          highlightColor: color.withValues(alpha: 0.1),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    PremiumSettingsWidgets.buildIconBadge(icon: icon, color: color),
+                    const SizedBox(width: 8),
+                    Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 0.5)),
+                    if (onTap != null && value != "--" && value != "0 Erreurs" && value != "0 Orphelins")
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: Icon(FluentIcons.info_16_regular, size: 14, color: color.withValues(alpha: 0.5)),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(value, style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 4),
+                Text(subtitle, style: TextStyle(fontSize: 14, color: color, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 10),
+                Text(desc, style: TextStyle(fontSize: 13, color: c.textMuted, fontWeight: FontWeight.w600)),
+              ],
+            ),
           ),
-          const SizedBox(height: 16),
-          Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 4),
-          Text(subtitle, style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 10),
-          Text(desc, style: TextStyle(fontSize: 9, color: c.textMuted, fontWeight: FontWeight.w600)),
-        ],
+        ),
       ),
     );
   }
@@ -257,7 +280,7 @@ class SystemHealthDashboard extends ConsumerWidget {
             children: [
               PremiumSettingsWidgets.buildIconBadge(icon: FluentIcons.toolbox_24_filled, color: c.rose),
               const SizedBox(width: 12),
-              const Text("NETTOYAGE ÉLITE & MAINTENANCE", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1.0)),
+              const Text("NETTOYAGE ÉLITE & MAINTENANCE", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, letterSpacing: 1.0)),
             ],
           ),
           const SizedBox(height: 24),
@@ -276,7 +299,7 @@ class SystemHealthDashboard extends ConsumerWidget {
           const Divider(height: 1),
           const SizedBox(height: 24),
           
-          Text("SUPPRESSION PAR CATÉGORIE", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, color: c.rose, letterSpacing: 1.0)),
+          Text("SUPPRESSION PAR CATÉGORIE", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: c.rose, letterSpacing: 1.0)),
           const SizedBox(height: 16),
           
           _buildSelectiveItem(
@@ -349,9 +372,9 @@ class SystemHealthDashboard extends ConsumerWidget {
             children: [
               Icon(icon, color: color, size: 24),
               const SizedBox(height: 12),
-              Text(label, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: color)),
+              Text(label, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: color)),
               const SizedBox(height: 4),
-              Text(sub, style: TextStyle(fontSize: 10, color: c.textMuted, fontWeight: FontWeight.w600)),
+              Text(sub, style: TextStyle(fontSize: 14, color: c.textMuted, fontWeight: FontWeight.w600)),
             ],
           ),
         ),
@@ -391,9 +414,9 @@ class SystemHealthDashboard extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(title, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, color: isNuclear ? c.rose : null)),
+                      Text(title, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: isNuclear ? c.rose : null)),
                       const SizedBox(height: 4),
-                      Text(desc, style: TextStyle(fontSize: 10, color: c.textSecondary, fontWeight: FontWeight.w500)),
+                      Text(desc, style: TextStyle(fontSize: 13, color: c.textSecondary, fontWeight: FontWeight.w500)),
                     ],
                   ),
                 ),
@@ -426,14 +449,14 @@ class SystemHealthDashboard extends ConsumerWidget {
                   Expanded(
                     child: Text(
                       "Attention : Cette action va effacer définitivement les données suivantes : $desc",
-                      style: TextStyle(color: c.rose, fontSize: 12, fontWeight: FontWeight.bold),
+                      style: TextStyle(color: c.rose, fontSize: 14, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 24),
-            Text("Entrez le CODE PIN MANAGER pour confirmer", style: TextStyle(fontSize: 12, color: c.textMuted, fontWeight: FontWeight.w800)),
+            Text("Entrez le CODE PIN MANAGER pour confirmer", style: TextStyle(fontSize: 14, color: c.textMuted, fontWeight: FontWeight.w800)),
             const SizedBox(height: 16),
             _PinEntryField(
               onComplete: (pin) {
@@ -452,6 +475,142 @@ class SystemHealthDashboard extends ConsumerWidget {
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: Text("ANNULER", style: TextStyle(color: c.textMuted, fontWeight: FontWeight.bold))),
+        ],
+      ),
+    );
+  }
+
+  void _showIntegrityDetails(BuildContext context, DashColors c, SystemHealthState state, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => EnterpriseWidgets.buildPremiumDialog(
+        context,
+        title: "DÉTAILS D'INTÉGRITÉ STOCK",
+        icon: FluentIcons.shield_task_24_filled,
+        width: 650,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: c.amber.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+              child: Row(
+                children: [
+                  Icon(FluentIcons.info_24_regular, color: c.amber, size: 20),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      "Ces produits présentent un écart entre la quantité affichée et l'historique des mouvements enregistrés.",
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 300,
+              child: ListView.separated(
+                itemCount: state.safeStockIssues.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final issue = state.safeStockIssues[index];
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(issue['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                              Text("ID: ${issue['id']}", style: TextStyle(fontSize: 11, color: c.textMuted)),
+                            ],
+                          ),
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text("${issue['current']} (Affiché)", style: TextStyle(color: c.rose, fontWeight: FontWeight.bold, fontSize: 13)),
+                            Text("${issue['sum']} (Réel)", style: TextStyle(color: c.emerald, fontWeight: FontWeight.bold, fontSize: 13)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text("FERMER", style: TextStyle(color: c.textMuted, fontWeight: FontWeight.bold))),
+          const SizedBox(width: 8),
+          PremiumSettingsWidgets.buildGradientBtn(
+            onPressed: () {
+              Navigator.pop(context);
+              ref.read(systemHealthProvider.notifier).runMasterOptimization();
+            },
+            label: "SYNCHRONISER TOUT",
+            icon: FluentIcons.flash_24_filled,
+            colors: [c.emerald, const Color(0xFF27AE60)],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showMediaDetails(BuildContext context, DashColors c, SystemHealthState state, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => EnterpriseWidgets.buildPremiumDialog(
+        context,
+        title: "IMAGES ORPHELINES DÉTECTÉES",
+        icon: FluentIcons.image_copy_24_filled,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Les fichiers suivants ne sont plus utilisés par aucun produit et occupent de l'espace inutilement.",
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 300,
+              child: ListView.builder(
+                itemCount: state.safeOrphanImages.length,
+                itemBuilder: (context, index) {
+                  final path = state.safeOrphanImages[index];
+                  final name = path.split('\\').last.split('/').last;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      children: [
+                        Icon(FluentIcons.image_24_regular, size: 16, color: c.violet),
+                        const SizedBox(width: 12),
+                        Expanded(child: Text(name, style: const TextStyle(fontSize: 12, fontFamily: 'monospace'))),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text("FERMER", style: TextStyle(color: c.textMuted, fontWeight: FontWeight.bold))),
+          const SizedBox(width: 8),
+          PremiumSettingsWidgets.buildGradientBtn(
+            onPressed: () {
+              Navigator.pop(context);
+              ref.read(systemHealthProvider.notifier).runMasterOptimization();
+            },
+            label: "NETTOYER LE DISQUE",
+            icon: FluentIcons.delete_24_filled,
+            colors: [c.rose, const Color(0xFFC0392B)],
+          ),
         ],
       ),
     );

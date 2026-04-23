@@ -3,6 +3,9 @@ import 'package:danaya_plus/features/inventory/providers/product_providers.dart'
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:uuid/uuid.dart';
+import 'package:danaya_plus/features/auth/application/auth_service.dart';
+import 'package:danaya_plus/features/finance/providers/session_providers.dart';
 import 'package:path/path.dart' as p_path;
 import 'package:danaya_plus/core/database/database_service.dart';
 
@@ -36,26 +39,39 @@ class MaintenanceService {
       FROM products p
     ''');
 
+    final List<Map<String, dynamic>> stockIssueDetails = [];
     int issueCount = 0;
+    
     for (var row in stockDiscrepancies) {
        final current = (row['current_qty'] as num).toDouble();
        final sum = (row['movement_sum'] as num? ?? 0.0).toDouble();
-       if ((current - sum).abs() > 0.01) issueCount++;
+       if ((current - sum).abs() > 0.01) {
+         issueCount++;
+         stockIssueDetails.add({
+           'id': row['id'],
+           'name': row['name'],
+           'current': current,
+           'sum': sum,
+           'diff': (current - sum).abs(),
+         });
+       }
     }
 
-    final orphanCount = await _countOrphanImages();
+    final orphanDetails = await _getOrphanImageDetails();
     final dbFile = File(await _ref.read(databaseServiceProvider).getDatabasePath());
     final dbSize = await dbFile.length();
 
     return {
       'stock_issues': issueCount,
-      'orphan_images': orphanCount,
+      'stock_details': stockIssueDetails,
+      'orphan_images': orphanDetails.length,
+      'orphan_details': orphanDetails,
       'db_size_mb': (dbSize / 1024 / 1024).toStringAsFixed(2),
-      'is_healthy': issueCount == 0 && orphanCount == 0,
+      'is_healthy': issueCount == 0 && orphanDetails.isEmpty,
     };
   }
 
-  Future<int> _countOrphanImages() async {
+  Future<List<String>> _getOrphanImageDetails() async {
     final db = await _ref.read(databaseServiceProvider).database;
     final products = await db.query('products', columns: ['image_path']);
     final referencedPaths = products
@@ -63,7 +79,7 @@ class MaintenanceService {
         .where((path) => path != null)
         .toSet();
 
-    int count = 0;
+    List<String> orphans = [];
     try {
       final appDir = await getApplicationSupportDirectory();
       final imagesDir = Directory(p_path.join(appDir.path, 'product_images'));
@@ -71,12 +87,12 @@ class MaintenanceService {
         final files = await imagesDir.list().toList();
         for (final entity in files) {
           if (entity is File && !referencedPaths.contains(entity.path)) {
-            count++;
+            orphans.add(entity.path);
           }
         }
       }
     } catch (_) {}
-    return count;
+    return orphans;
   }
 
   Future<int> purgeActivityLogs(int monthsRetention) async {
@@ -222,14 +238,16 @@ class MaintenanceService {
     return deletedCount;
   }
 
-  /// 💎 [Elite] Répare les écarts entre stock physique et historique des mouvements
+  /// 💎 [Elite] Répare les écarts entre stock physique et historique des mouvements en insérant les mouvements manquants.
   Future<int> repairStockIntegrity() async {
     final db = await _ref.read(databaseServiceProvider).database;
+    final user = await _ref.read(authServiceProvider.future);
+    final activeSession = await _ref.read(activeSessionProvider.future);
     int repairCount = 0;
     
     await db.transaction((txn) async {
       final discrepancies = await txn.rawQuery('''
-        SELECT p.id, 
+        SELECT p.id, p.quantity,
                (SELECT SUM(CASE WHEN type = 'IN' THEN quantity ELSE -quantity END) 
                 FROM stock_movements WHERE product_id = p.id) as movement_sum
         FROM products p
@@ -237,15 +255,30 @@ class MaintenanceService {
 
       for (var row in discrepancies) {
         final productId = row['id'] as String;
+        final currentQty = (row['quantity'] as num).toDouble();
         final sum = (row['movement_sum'] as num? ?? 0.0).toDouble();
         
-        final updated = await txn.update(
-          'products', 
-          {'quantity': sum}, 
-          where: 'id = ? AND ABS(quantity - ?) > 0.01',
-          whereArgs: [productId, sum],
-        );
-        if (updated > 0) repairCount++;
+        final diff = currentQty - sum;
+        
+        // Si le stock affiché (currentQty) est différent de l'historique (sum),
+        // on crée le mouvement manquant pour aligner l'historique sur l'affichage visuel, 
+        // pas l'inverse !
+        if (diff.abs() > 0.01) {
+           final type = diff > 0 ? 'IN' : 'OUT';
+           final qty = diff.abs();
+           
+           await txn.insert('stock_movements', {
+              'id': const Uuid().v4(),
+              'product_id': productId,
+              'type': type,
+              'quantity': qty,
+              'reason': 'Ajustement Automatique (Intégrité)',
+              'date': DateTime.now().toIso8601String(),
+              'user_id': user?.id,
+              'session_id': activeSession?.id,
+           });
+           repairCount++;
+        }
       }
     });
 

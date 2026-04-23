@@ -25,6 +25,7 @@ class DashColors {
 
   // Accents sémantiques (identiques en clair/sombre)
   Color get blue    => const Color(0xFF3B82F6);
+  Color get primary => blue; // Added to satisfy POS usages
   Color get emerald => const Color(0xFF10B981);
   Color get amber   => const Color(0xFFF59E0B);
   Color get rose    => const Color(0xFFEF4444);

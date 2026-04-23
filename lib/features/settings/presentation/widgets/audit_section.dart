@@ -35,9 +35,9 @@ class AuditSettingsSection extends StatelessWidget {
               decoration: BoxDecoration(color: c.rose.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
               child: Row(
                 children: [
-                   Icon(FluentIcons.arrow_sync_16_regular, color: c.rose, size: 16),
+                   Icon(FluentIcons.arrow_sync_16_regular, color: c.rose, size: 18),
                    const SizedBox(width: 8),
-                   Text("Actualiser", style: TextStyle(color: c.rose, fontSize: 11, fontWeight: FontWeight.bold)),
+                   Text("Actualiser", style: TextStyle(color: c.rose, fontSize: 13, fontWeight: FontWeight.bold)),
                 ],
               ),
             ),
@@ -158,32 +158,32 @@ class AuditSettingsSection extends StatelessWidget {
                       ),
                       child: Text(
                         type,
-                        style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 9, letterSpacing: 0.5),
+                        style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 0.5),
                       ),
                     ),
                     Text(
                       "$dateStr à $timeStr",
-                      style: TextStyle(color: c.textMuted, fontSize: 10, fontWeight: FontWeight.bold),
+                      style: TextStyle(color: c.textMuted, fontSize: 12, fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
                 Text(
                   description,
-                  style: TextStyle(color: c.textPrimary, fontWeight: FontWeight.bold, fontSize: 13),
+                  style: TextStyle(color: c.textPrimary, fontWeight: FontWeight.bold, fontSize: 14),
                 ),
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    Icon(FluentIcons.person_12_regular, size: 12, color: c.textSecondary),
+                    Icon(FluentIcons.person_12_regular, size: 14, color: c.textSecondary),
                     const SizedBox(width: 6),
                     Text(
                       "Action effectuée par : ",
-                      style: TextStyle(color: c.textSecondary, fontSize: 10),
+                      style: TextStyle(color: c.textSecondary, fontSize: 12),
                     ),
                     Text(
                       username,
-                      style: TextStyle(color: c.textPrimary, fontSize: 10, fontWeight: FontWeight.w900),
+                      style: TextStyle(color: c.textPrimary, fontSize: 12, fontWeight: FontWeight.w900),
                     ),
                   ],
                 ),

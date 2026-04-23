@@ -46,6 +46,8 @@ class SystemHealthState {
   final Map<String, dynamic>? lastScannerResult;
   final String? currentActionLabel;
   final double progress;
+  final List<Map<String, dynamic>>? stockIssues;
+  final List<String>? orphanImages;
 
   SystemHealthState({
     this.isScanning = false,
@@ -53,7 +55,12 @@ class SystemHealthState {
     this.lastScannerResult,
     this.currentActionLabel,
     this.progress = 0.0,
+    this.stockIssues = const [],
+    this.orphanImages = const [],
   });
+
+  List<Map<String, dynamic>> get safeStockIssues => stockIssues ?? const [];
+  List<String> get safeOrphanImages => orphanImages ?? const [];
 
   SystemHealthState copyWith({
     bool? isScanning,
@@ -61,6 +68,8 @@ class SystemHealthState {
     Map<String, dynamic>? lastScannerResult,
     String? currentActionLabel,
     double? progress,
+    List<Map<String, dynamic>>? stockIssues,
+    List<String>? orphanImages,
   }) {
     return SystemHealthState(
       isScanning: isScanning ?? this.isScanning,
@@ -68,6 +77,8 @@ class SystemHealthState {
       lastScannerResult: lastScannerResult ?? this.lastScannerResult,
       currentActionLabel: currentActionLabel ?? this.currentActionLabel,
       progress: progress ?? this.progress,
+      stockIssues: stockIssues ?? this.stockIssues,
+      orphanImages: orphanImages ?? this.orphanImages,
     );
   }
 }
@@ -84,11 +95,18 @@ class SystemHealthNotifier extends Notifier<SystemHealthState> {
 
   /// 💎 Lance un diagnostic complet du système
   Future<void> runFullDiagnostic() async {
-    state = state.copyWith(isScanning: true, progress: 0.1, currentActionLabel: "Analyse de la base de données...");
+    state = state.copyWith(isScanning: true, progress: 0.1, currentActionLabel: "Analyse de la base de données...", stockIssues: [], orphanImages: []);
     
     try {
       final result = await ref.read(maintenanceServiceProvider).performIntegrityCheck();
-      state = state.copyWith(isScanning: false, lastScannerResult: result, progress: 1.0, currentActionLabel: "Diagnostic terminé.");
+      state = state.copyWith(
+        isScanning: false, 
+        lastScannerResult: result, 
+        progress: 1.0, 
+        currentActionLabel: "Diagnostic terminé.",
+        stockIssues: List<Map<String, dynamic>>.from(result['stock_details'] ?? []),
+        orphanImages: List<String>.from(result['orphan_details'] ?? []),
+      );
     } catch (e) {
       state = state.copyWith(isScanning: false, currentActionLabel: "Erreur lors du diagnostic: $e");
     }

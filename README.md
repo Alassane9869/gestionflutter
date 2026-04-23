@@ -1,85 +1,79 @@
-# 🚀 Danaya+ — Gestion de Stock & POS Ultra-Professionnel
+# 🚀 Danaya+ — Le POS & ERP Révolutionnaire "Offline-First"
+[![Flutter](https://img.shields.io/badge/Flutter-02569B?style=for-the-badge&logo=flutter&logoColor=white)](https://flutter.dev)
+[![Dart](https://img.shields.io/badge/Dart-0175C2?style=for-the-badge&logo=dart&logoColor=white)](https://dart.dev)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Android-blue?style=for-the-badge)](https://flutter.dev/multi-platform)
 
-**Danaya+** est une solution ERP-lite de pointe, conçue exclusivement pour les commerçants exigeants. Développée avec **Flutter Desktop** pour une performance native sous Windows et une portabilité sur Android, cette application offre une expérience utilisateur fluide, sécurisée et entièrement **offline**.
-
-![Mockup Dashboard](https://raw.githubusercontent.com/sickn33/antigravity-awesome-skills/main/assets/stockpro_preview.png) *(Note: Image de démonstration)*
-
----
-
-## 💎 Points Forts
-
-- **Interface Premium** : Design moderne avec effets de *Glassmorphism*, animations fluides et typographies soignées.
-- **Multithème Intégré** : Choisissez parmi 4 ambiances professionnelles (Dark, Light, Midnight, Emerald).
-- **Sécurité Maximale** : Système de licence robuste lié au matériel (Hardware ID), 100% autonome et sécurisé.
-- **Performance Offline** : Base de données SQLite ultra-rapide via FFI, aucune connexion internet requise.
-- **Adaptabilité** : Pensé pour le Desktop (Windows) avec une interface optimisée pour le Point de Vente (POS).
+**Danaya+** n'est pas qu'un simple point de vente. C'est un écosystème commercial premium, conçu spécifiquement pour les environnements où la connectivité est instable mais les exigences professionnelles sont élevées. Développé avec **Flutter Desktop**, il allie la puissance d'une base de données locale à des innovations de pointe telles que l'**Intelligence Artificielle conversationnelle** et la **Synchronisation matérielle en temps réel**.
 
 ---
 
-## 🛠️ Modules Fonctionnels
+## 🌟 Fonctionnalités Révolutionnaires (L'Exclusivité Danaya)
 
-### 📊 Tableau de Bord (Dashboard)
-- Visualisation en temps réel du chiffre d'affaires et des bénéfices.
-- Graphiques analytiques hebdomadaires et mensuels.
-- Système d'alertes intelligentes pour les stocks critiques.
+### 🤖 1. Danaya Assistant (NLP Conversationnel)
+Le premier POS de la région à intégrer un moteur **NLP 100% Offline**. Pas d'internet ? Aucun problème.
+-   **Commandes Vocales & Textuelles** : Parlez à votre boutique. *"Combien j'ai vendu hier ?"*, *"Montre-moi les dettes du Client X"*.
+-   **Reconnaissance Intelligente** : Gère les fautes de frappe, les synonymes et la terminologie commerciale locale.
+-   **Confidentialité Totale** : Tous les traitements d'intention se font sur votre processeur local.
 
-### 📦 Gestion de l'Inventaire
-- Catalogue produits complet avec gestion des catégories et des photos.
-- Suivi précis des seuils d'alerte et des prix d'achat/vente.
-- Historique détaillé des mouvements de stock (entrées/sorties).
+### ⚡ 2. Alpha-Migrate (Pont de Données par IA)
+Passer de fichiers Excel désordonnés à un POS professionnel est désormais une question de secondes.
+-   **Mapping Intelligent** : Notre moteur détecte automatiquement les en-têtes et les structures de vos fichiers externes.
+-   **Importation "Fast-Track"** : Les modèles officiels Danaya sont reconnus instantanément, évitant tout mapping manuel.
+-   **Validation des Données** : Une désinfection proactive garantit que votre inventaire démarre sur des bases saines.
 
-### 🛒 Point de Vente (POS)
-- Interface de caisse ultra-rapide optimisée pour les écrans Desktop.
-- Gestion du panier, des remises et des modes de paiement multiples.
-- Impression de tickets de caisse professionnels et factures PDF.
+### 🖥️ 3. Afficheur Client Digital (Système de Diffusion)
+Élevez l'expérience d'achat avec un écran secondaire dédié.
+-   **Liberté Matérielle** : N'importe quelle tablette ou téléphone sur le réseau local devient un afficheur professionnel.
+-   **Synchro Temps Réel** : Le panier, les totaux et les points de fidélité se mettent à jour instantanément via un flux WebSocket léger.
+-   **Engagement** : Affichez des promotions et le solde du client pendant qu'il fait ses achats.
 
-### 💰 Finance & Statistiques
-- Suivi rigoureux des recettes, dépenses et marges bénéficiaires.
-- Rapports exportables pour une comptabilité simplifiée.
-
-### 👥 Clients & Fidélité
-- Fiches clients détaillées avec historique d'achat.
-- Gestion des crédits clients et relances.
-
----
-
-## 🎨 Design Système (Les 4 Thèmes)
-
-Personnalisez votre outil de travail selon vos préférences :
-1.  **Modern Dark** : L'élégance du mode sombre avec des accents bleu électrique, idéal pour réduire la fatigue oculaire.
-2.  **Professional Light** : Une interface claire comme du cristal, favorisant la clarté et la concentration.
-3.  **Midnight Blue** : Une immersion profonde dans un bleu nuit sophistiqué avec des contrastes néons.
-4.  **Emerald Enterprise** : Orienté productivité, utilisant les nuances de vert pour une sensation d'équilibre et de sérieux.
+### 📄 4. Moteur Documentaire Professionnel (Mode Prestige)
+Ne vous contentez pas d'imprimer des reçus ; projetez l'excellence.
+-   **Modèles Multi-Formats** : Basculez entre le mode "Standard" (Ticket 80mm) et "Prestige" (Facture A4).
+-   **Aperçus Interactifs** : Visualisez vos documents en PDF haute fidélité avant l'impression ou le partage.
+-   **Partage Direct** : Envoyez vos factures instantanément par WhatsApp ou Email (génération 100% hors-ligne).
 
 ---
 
-## 🔐 Système de Licence
-
-Le logiciel est distribué sous forme de licences temporaires ou définitives :
--   **Abonnement 1 An** : Accès complet et mises à jour pendant 12 mois.
--   **Abonnement 2 Ans** : Solution moyen terme optimisée.
--   **Abonnement 3 Ans** : La tranquillité sur le long terme.
--   **License Illimitée (Gold)** : Activation à vie pour un poste de travail spécifique.
-
-*Note : Chaque licence est liée de manière unique au Hardware ID (HID) de votre ordinateur.*
+## 💎 Philosophie Design : Bento UI
+Danaya+ utilise un système de design **Bento Box** optimisé pour les opérations intensives en caisse.
+-   **Glassmorphism & Micro-animations** : Une expérience fluide et moderne qui réduit la fatigue de l'opérateur.
+-   **8 Palettes de Couleurs Dynamiques** : De "Enterprise Emerald" à "Midnight Blue", adaptez le logiciel à votre marque.
+-   **Flux Optimisés** : Chaque pixel est placé pour minimiser les clics et maximiser la vitesse de transaction.
 
 ---
 
-## 💻 Stack Technique
-
-- **Framework** : Flutter (Stable Channel)
-- **Langage** : Dart
-- **Base de données** : SQLite (sqflite_common_ffi)
-- **Gestion d'état** : Riverpod (AsyncNotifier)
-- **Design** : Custom Material 3 avec animations complexes
-- **Licence** : Cryptographie SHA-256 locale
+## 🔒 Sécurité & Fiabilité
+-   **Chiffrement lié au Matériel** : Votre base de données (SQLite) est chiffrée en AES-256 et verrouillée par l'ID matériel (HID) de votre appareil.
+-   **Base de Données Auto-Guérissante** : Des vérifications d'intégrité proactives et une réparation de schéma empêchent la perte de données en cas de coupure de courant.
+-   **Souveraineté Hors-Ligne** : Vous possédez vos données. Pas de dépendance au cloud, pas de suivi par abonnement.
 
 ---
 
-## 👨‍💻 Développeur & Éditeur
-
-Ce logiciel est une propriété protégée. Pour toute demande d'activation ou de partenariat, veuillez contacter l'administrateur via les canaux officiels fournis avec votre copie du logiciel.
+## 🛠️ Stack Technique
+-   **Framework** : [Flutter](https://flutter.dev) (Desktop Native)
+-   **Moteur** : C++/Dart (FFI direct pour SQLite)
+-   **Gestion d'État** : [Riverpod 3.x](https://riverpod.dev) (Réactif & Robuste)
+-   **Intelligence** : Moteur NLP et automatisation sur mesure
+-   **Rapports** : Génération de PDF vectoriels haute densité
 
 ---
 
-© 2024 Danaya+ — Tous droits réservés.
+## 📂 Structure du Projet
+```text
+lib/
+├── core/             # Base de données, Réseau (Diffusion), Ponts Matériels
+├── features/
+│   ├── assistant/    # Moteur NLP & Danaya Assistant
+│   ├── inventory/    # Stock, Alpha-Migrate, Utilitaires Code-barres
+│   ├── pos/          # Panier, Paiement, Serveur Afficheur Client
+│   ├── finance/      # Trésorerie, Multi-devises, Audits Financiers
+│   └── settings/     # Configuration Matérielle, Sécurité, Centre de Design
+```
+
+---
+
+## 👨‍💻 Note sur la Publication Publique
+Ce dépôt met en avant les innovations architecturales du projet **Danaya+**. Il démontre comment construire une application d'entreprise "Offline-First" de qualité industrielle avec Flutter.
+
+*© 2024 Danaya+ Technologies. Tous droits réservés.*

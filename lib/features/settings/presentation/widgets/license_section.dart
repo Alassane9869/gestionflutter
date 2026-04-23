@@ -34,9 +34,9 @@ class LicenseSettingsSection extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("LICENCE PRO", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: c.blue, letterSpacing: 1.0)),
+                    Text("LICENCE PRO", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: c.blue, letterSpacing: 1.0)),
                     const SizedBox(height: 2),
-                    Text("Actif • Danaya+ v6.4", style: TextStyle(fontSize: 10, color: c.textMuted, fontWeight: FontWeight.bold)),
+                    Text("Actif • Danaya+ v6.4", style: TextStyle(fontSize: 13, color: c.textMuted, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ),
@@ -44,7 +44,7 @@ class LicenseSettingsSection extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(color: c.blue, borderRadius: BorderRadius.circular(8)),
-                  child: Text("$daysRemaining Jours", style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                  child: Text("$daysRemaining Jours", style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
                 ),
             ],
           ),
@@ -60,9 +60,9 @@ class LicenseSettingsSection extends StatelessWidget {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(FluentIcons.wrench_16_filled, size: 14, color: c.amber),
+                        Icon(FluentIcons.wrench_16_filled, size: 18, color: c.amber),
                         const SizedBox(width: 6),
-                        Text("CLÉ DE SECOURS", style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: c.amber)),
+                        Text("CLÉ DE SECOURS", style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: c.amber)),
                       ],
                     ),
                   ),
@@ -85,7 +85,7 @@ class LicenseSettingsSection extends StatelessWidget {
               onTap: onViewTos,
               child: Text(
                 "Conditions d'Utilisation",
-                style: TextStyle(fontSize: 10, color: c.textMuted, decoration: TextDecoration.underline),
+                style: TextStyle(fontSize: 12, color: c.textMuted, decoration: TextDecoration.underline),
               ),
             ),
           ),

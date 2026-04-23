@@ -7,6 +7,7 @@ import 'package:danaya_plus/features/inventory/providers/product_providers.dart'
 import 'package:danaya_plus/features/auth/application/auth_service.dart';
 import 'package:danaya_plus/core/widgets/enterprise_widgets.dart';
 import 'product_form_dialog.dart';
+import 'product_detail_dialog.dart';
 import 'package:danaya_plus/features/inventory/presentation/dashboard_screen.dart';
 import 'package:danaya_plus/core/extensions/ref_extensions.dart';
 import 'package:danaya_plus/core/utils/date_formatter.dart';
@@ -21,6 +22,7 @@ import 'package:danaya_plus/core/utils/image_resolver.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:open_filex/open_filex.dart';
 import 'product_movement_dialog.dart';
+import 'widgets/excel_import_wizard.dart';
 
 class ProductListScreen extends ConsumerStatefulWidget {
   const ProductListScreen({super.key});
@@ -59,12 +61,11 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
       }
     });
 
-    // Gérer la sélection initiale au chargement (si elle a été faite juste avant la navigation)
+    // Mettre l'état de la recherche initiale (s'il y en a un) de manière asynchrone DANS un Future.microtask
+    // et ne le faire qu'une seule fois si possible pour ne pas boucler.
     final pendingSearch = ref.read(searchSelectionProvider);
     if (pendingSearch != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _applyGlobalSearch(pendingSearch);
-      });
+        Future.microtask(() => _applyGlobalSearch(pendingSearch));
     }
 
     return Scaffold(
@@ -134,6 +135,20 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
                         ),
                       ),
                     ),
+                    Tooltip(
+                      message: "Transférer du stock entre entrepôts",
+                      child: FilledButton.icon(
+                        onPressed: () => _handleTransferGlobal(context),
+                        icon: const Icon(FluentIcons.arrow_swap_24_regular, size: 18),
+                        label: const Text("Transfert"),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.blue.withValues(alpha: 0.1),
+                          foregroundColor: Colors.blue,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: const BorderSide(color: Colors.blue)),
+                        ),
+                      ),
+                    ),
                     const SizedBox(width: 12),
                     FilledButton.icon(
                       onPressed: () => _showProductForm(context),
@@ -154,11 +169,35 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
                   final lowStock = products.where((p) => p.isLowStock || p.isOutOfStock).length;
                   return Row(
                     children: [
-                      Expanded(child: EnterpriseWidgets.buildStatCard(context, title: "Total Articles", value: "${products.length}", icon: FluentIcons.box_24_regular, color: theme.colorScheme.primary)),
+                      Expanded(
+                        child: EnterpriseStatCard(
+                          title: "Articles Référencés",
+                          value: "${products.length}",
+                          icon: FluentIcons.box_24_regular,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
                       const SizedBox(width: 16),
-                      Expanded(child: EnterpriseWidgets.buildStatCard(context, title: "Valeur du Stock", value: ref.fmt(val), icon: FluentIcons.money_24_regular, color: const Color(0xFF10B981))),
+                      Expanded(
+                        child: EnterpriseStatCard(
+                          title: "Valeur Totale Stock",
+                          value: ref.fmt(val),
+                          icon: FluentIcons.money_24_regular,
+                          color: const Color(0xFF10B981),
+                          trendLabel: "Optimisé",
+                        ),
+                      ),
                       const SizedBox(width: 16),
-                      Expanded(child: EnterpriseWidgets.buildStatCard(context, title: "Alertes Rupture", value: "$lowStock", icon: FluentIcons.warning_24_regular, color: theme.colorScheme.error)),
+                      Expanded(
+                        child: EnterpriseStatCard(
+                          title: "Alertes Rupture",
+                          value: "$lowStock",
+                          icon: FluentIcons.warning_24_regular,
+                          color: theme.colorScheme.error,
+                          isPositiveTrend: false,
+                          trendLabel: lowStock > 0 ? "Action requise" : "Sain",
+                        ),
+                      ),
                     ],
                   );
                 },
@@ -167,54 +206,67 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
               ),
               const SizedBox(height: 12),
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF16181D) : Colors.white,
+                  color: isDark ? const Color(0xFF1A1D24) : Colors.white,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: isDark ? const Color(0xFF2D3039) : const Color(0xFFE5E7EB)),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _searchController,
-                        onChanged: (q) => ref.read(productListProvider.notifier).search(q),
-                        decoration: InputDecoration(
-                          hintText: "Rechercher par nom, référence ou code-barres...",
-                          prefixIcon: const Icon(FluentIcons.search_24_regular, size: 20),
-                          border: InputBorder.none,
-                          hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 14),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    _buildWarehouseSelector(context, ref),
-                    const SizedBox(width: 12),
-                    _buildFilterBtn(context, FluentIcons.filter_24_regular, "Tous les rayons"),
-                    const SizedBox(width: 12),
-                    _buildFilterBtn(context, FluentIcons.arrow_sort_24_regular, "Trier par"),
+                  boxShadow: isDark ? [] : [
+                    BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 20, offset: const Offset(0, 4))
                   ],
-                 ),
-              ),
-              const SizedBox(height: 12),
-              productsAsync.when(
-                data: (products) {
-                  final allCount = products.length;
-                  final inStockCount = products.where((p) => !p.isLowStock && !p.isOutOfStock).length;
-                  final lowCount = products.where((p) => p.isLowStock).length;
-                  final outCount = products.where((p) => p.isOutOfStock).length;
-                  return Wrap(
-                    spacing: 8,
-                    children: [
-                      _buildStockChip('all', 'Tous ($allCount)', isDark),
-                      _buildStockChip('inStock', '✅ En stock ($inStockCount)', isDark),
-                      _buildStockChip('lowStock', '⚠️ Stock bas ($lowCount)', isDark),
-                      _buildStockChip('outOfStock', '🔴 Rupture ($outCount)', isDark),
-                    ],
-                  );
-                },
-                loading: () => const SizedBox.shrink(),
-                error: (_, __) => const SizedBox.shrink(),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _searchController,
+                            onChanged: (q) => ref.read(productListProvider.notifier).search(q),
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                            decoration: InputDecoration(
+                              hintText: "Rechercher par nom, référence ou code-barres...",
+                              prefixIcon: Icon(FluentIcons.search_24_regular, size: 20, color: theme.colorScheme.primary),
+                              border: InputBorder.none,
+                              hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        _buildWarehouseSelector(context, ref),
+                        const SizedBox(width: 12),
+                        _buildFilterBtn(context, FluentIcons.filter_24_regular, "Rayons"),
+                        const SizedBox(width: 12),
+                        _buildFilterBtn(context, FluentIcons.arrow_sort_24_regular, "Trier"),
+                      ],
+                    ),
+                    const Divider(height: 1),
+                    const SizedBox(height: 8),
+                    productsAsync.when(
+                      data: (products) {
+                        final allCount = products.length;
+                        final inStockCount = products.where((p) => !p.isLowStock && !p.isOutOfStock).length;
+                        final lowCount = products.where((p) => p.isLowStock).length;
+                        final outCount = products.where((p) => p.isOutOfStock).length;
+                        return Row(
+                          children: [
+                            Text("FILTRER : ", style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Colors.grey.shade500, letterSpacing: 1.2)),
+                            const SizedBox(width: 12),
+                            _buildStockChip('all', 'Tous ($allCount)', isDark),
+                            const SizedBox(width: 8),
+                            _buildStockChip('inStock', 'En stock ($inStockCount)', isDark),
+                            const SizedBox(width: 8),
+                            _buildStockChip('lowStock', 'Stock bas ($lowCount)', isDark),
+                            const SizedBox(width: 8),
+                            _buildStockChip('outOfStock', 'Rupture ($outCount)', isDark),
+                          ],
+                        );
+                      },
+                      loading: () => const SizedBox.shrink(),
+                      error: (_, __) => const SizedBox.shrink(),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 12),
               Expanded(
@@ -250,6 +302,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
                         borderRadius: BorderRadius.circular(14),
                         child: _InventoryDataTablePremium(
                           products: filtered,
+                          onDetail: (p) => _showProductDetail(context, p),
                           onEdit: (p) => _showProductForm(context, product: p),
                           onDelete: user?.isAdmin == true ? (p) => _confirmDelete(context, p) : null,
                         ),
@@ -347,61 +400,25 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
     }
   }
 
-  void _handleImport(BuildContext context) async {
-    try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['xlsx'],
-      );
-
-      if (result != null && result.files.single.path != null) {
-        final bytes = await File(result.files.single.path!).readAsBytes();
-        final importResult = await ref.read(inventoryAutomationServiceProvider).importFromExcel(bytes);
-
-        if (!context.mounted) return;
-        showDialog(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: const Text("Résultat de l'import"),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text("Articles importés avec succès : ${importResult.count}"),
-                  if (importResult.errors > 0) ...[
-                    const SizedBox(height: 8),
-                    Text("Erreurs rencontrées : ${importResult.errors}", style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 4),
-                    SizedBox(
-                      height: 100,
-                      width: double.maxFinite,
-                      child: ListView(
-                        children: importResult.errorMessages.map((m) => Text("• $m", style: const TextStyle(fontSize: 12))).toList(),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    ref.read(productListProvider.notifier).refresh();
-                    Navigator.pop(ctx);
-                  }, 
-                  child: const Text("OK")
-                ),
-              ],
-            ),
-          );
-      }
-    } catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Erreur lors de l'importation : $e")));
-    }
+  void _handleImport(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => const ExcelImportWizard(),
+    );
   }
 
   void _showProductForm(BuildContext context, {Product? product}) {
-    showDialog(context: context, builder: (_) => ProductFormDialog(product: product));
+    Future.delayed(const Duration(milliseconds: 50), () {
+      if (!context.mounted) return;
+      showDialog(context: context, builder: (_) => ProductFormDialog(product: product));
+    });
+  }
+
+  void _showProductDetail(BuildContext context, Product product) {
+    showDialog(
+      context: context, 
+      builder: (_) => ProductDetailDialog(product: product),
+    );
   }
 
   void _handleBarcodeLabels(BuildContext context) async {
@@ -411,6 +428,13 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
     showDialog(
       context: context,
       builder: (ctx) => BarcodeLabelsDialog(initialProducts: products),
+    );
+  }
+
+  void _handleTransferGlobal(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => const TransferStockDialog(),
     );
   }
 
@@ -426,25 +450,28 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
       return;
     }
 
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text("Supprimer le produit ?"),
-        content: Text("Voulez-vous vraiment retirer \"${product.name}\" du stock ?"),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annuler")),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
-            onPressed: () {
-              ref.read(productListProvider.notifier).deleteProduct(product.id);
-              Navigator.pop(ctx);
-            },
-            child: const Text("Supprimer"),
-          ),
-        ],
-      ),
-    );
+    Future.delayed(const Duration(milliseconds: 50), () {
+      if (!context.mounted) return;
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: const Text("Supprimer le produit ?"),
+          content: Text("Voulez-vous vraiment retirer \"${product.name}\" du stock ?"),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annuler")),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
+              onPressed: () {
+                ref.read(productListProvider.notifier).deleteProduct(product.id);
+                Navigator.pop(ctx);
+              },
+              child: const Text("Supprimer"),
+            ),
+          ],
+        ),
+      );
+    });
   }
 
   Widget _buildWarehouseSelector(BuildContext context, WidgetRef ref) {
@@ -488,10 +515,11 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
 
 class _InventoryDataTablePremium extends ConsumerStatefulWidget {
   final List<Product> products;
+  final ValueChanged<Product> onDetail;
   final ValueChanged<Product> onEdit;
   final ValueChanged<Product>? onDelete;
 
-  const _InventoryDataTablePremium({required this.products, required this.onEdit, required this.onDelete});
+  const _InventoryDataTablePremium({required this.products, required this.onDetail, required this.onEdit, required this.onDelete});
 
   @override
   ConsumerState<_InventoryDataTablePremium> createState() => _InventoryDataTablePremiumState();
@@ -516,10 +544,13 @@ class _InventoryDataTablePremiumState extends ConsumerState<_InventoryDataTableP
   }
 
   void _showMovementHistory(BuildContext context, Product product) {
-    showDialog(
-      context: context,
-      builder: (_) => ProductMovementHistoryDialog(product: product),
-    );
+    Future.delayed(const Duration(milliseconds: 50), () {
+      if (!context.mounted) return;
+      showDialog(
+        context: context,
+        builder: (_) => ProductMovementHistoryDialog(product: product),
+      );
+    });
   }
 
   @override
@@ -551,30 +582,45 @@ class _InventoryDataTablePremiumState extends ConsumerState<_InventoryDataTableP
                   ),
                 ),
                 child: DataTable(
-                  dataRowMaxHeight: 52,
-                  dataRowMinHeight: 48,
-                  headingRowHeight: 40,
-                  columnSpacing: 40,
-                  horizontalMargin: 32,
+                  showCheckboxColumn: false,
+                  dataRowMaxHeight: 64,
+                  dataRowMinHeight: 58,
+                  headingRowHeight: 44,
+                  columnSpacing: 24,
+                  horizontalMargin: 24,
                   columns: [
+                    _buildCol(""), // Colonne pour le bouton Info
                     _buildCol("ARTICLE"),
                     _buildCol("RÉFÉRENCE"),
-                    _buildCol("ENTREPÔT"),
-                    _buildCol("QTÉ"),
-                    _buildCol("VALEUR"),
+                    _buildCol("STATUT"),
+                    _buildCol("PRIX VENTE"),
+                    _buildCol("STOCK"),
                     _buildCol("ACTIONS"),
                   ],
                   rows: widget.products.map((p) {
                     return DataRow(
                       key: ValueKey(p.id),
+                      onSelectChanged: (_) => widget.onDetail(p),
                       cells: [
+                        DataCell(
+                          IconButton(
+                            icon: const Icon(FluentIcons.info_20_regular, color: Colors.blue),
+                            onPressed: () => widget.onDetail(p),
+                            tooltip: "Détails rapides",
+                            style: IconButton.styleFrom(
+                              backgroundColor: Colors.blue.withValues(alpha: 0.05),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                          ),
+                        ),
                         DataCell(Row(
                           children: [
                             Container(
-                              width: 32, height: 32,
+                              width: 38, height: 38,
                               decoration: BoxDecoration(
                                 color: isDark ? const Color(0xFF282828) : Colors.grey.shade200,
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05)),
                                 image: p.imagePath != null
                                     ? DecorationImage(
                                         image: ImageResolver.getProductImage(p.imagePath, ref.watch(shopSettingsProvider).value), 
@@ -587,13 +633,15 @@ class _InventoryDataTablePremiumState extends ConsumerState<_InventoryDataTableP
                                   : null,
                             ),
                             const SizedBox(width: 16),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(p.name, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: theme.textTheme.bodyLarge?.color)),
-                                Text(p.category ?? "Accessoires", style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                              ],
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(p.name, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: theme.textTheme.bodyLarge?.color)),
+                                  Text(p.category ?? "Général", style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                                ],
+                              ),
                             ),
                           ],
                         )),
@@ -605,18 +653,29 @@ class _InventoryDataTablePremiumState extends ConsumerState<_InventoryDataTableP
                           ),
                           child: Text(p.barcode ?? "—", style: TextStyle(fontSize: 11, color: isDark ? Colors.grey : Colors.grey.shade700, fontWeight: FontWeight.bold)),
                         )),
-                        const DataCell(Text("Magasin Principal", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                        DataCell(Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: p.isOutOfStock ? Colors.red.withValues(alpha: 0.1) : (p.isLowStock ? Colors.orange.withValues(alpha: 0.1) : Colors.green.withValues(alpha: 0.1)),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            p.isOutOfStock ? "RUPTURE" : (p.isLowStock ? "BAS" : "OK"),
+                            style: TextStyle(
+                              color: p.isOutOfStock ? Colors.red : (p.isLowStock ? Colors.orange : Colors.green),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        )),
+                        DataCell(Text(ref.fmt(p.sellingPrice), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
                         DataCell(Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(ref.qty(p.quantity), style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: theme.textTheme.bodyLarge?.color)),
-                            Text("Min: ${ref.qty(p.alertThreshold)}", style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                            if (p.unit != null) Text(p.unit!, style: const TextStyle(fontSize: 10, color: Colors.grey)),
                           ],
-                        )),
-                        DataCell(Text(
-                          ref.fmt(p.stockValue), 
-                          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: theme.textTheme.bodyLarge?.color)
                         )),
                         DataCell(Row(
                           children: [
@@ -626,7 +685,10 @@ class _InventoryDataTablePremiumState extends ConsumerState<_InventoryDataTableP
                               child: IconButton(
                                 icon: const Icon(FluentIcons.arrow_swap_16_regular, size: 18, color: Colors.grey),
                                 onPressed: () {
-                                  showDialog(context: context, builder: (_) => TransferStockDialog(initialProduct: p));
+                                  Future.delayed(const Duration(milliseconds: 50), () {
+                                    if (!context.mounted) return;
+                                    showDialog(context: context, builder: (_) => TransferStockDialog(initialProduct: p));
+                                  });
                                 },
                               ),
                             ),

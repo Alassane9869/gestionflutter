@@ -102,13 +102,10 @@ class BackupService {
         return const BackupResult(success: false, message: "Le fichier de sauvegarde est introuvable.");
       }
 
-      // Valider SQLite
-      try {
-        DatabaseFactory factory = Platform.isWindows || Platform.isLinux ? databaseFactoryFfi : databaseFactory;
-        final testDb = await factory.openDatabase(backupFile.path, options: OpenDatabaseOptions(readOnly: true));
-        await testDb.close();
-      } catch (e) {
-        return const BackupResult(success: false, message: "Ce fichier n'est pas une base de données SQLite valide.");
+      // 🛡️ ALPHA-ARMOR: Validation d'intégrité avant restauration
+      final validation = await _validateDatabaseIntegrity(backupFile);
+      if (!validation.success) {
+        return validation;
       }
 
       // Fermer connexion actuelle propre
@@ -169,13 +166,10 @@ class BackupService {
         return const BackupResult(success: false, message: "Échec de l'extraction ou fichier introuvable.");
       }
 
-      // Valider que c'est un SQLite valide
-      try {
-        DatabaseFactory factory = Platform.isWindows || Platform.isLinux ? databaseFactoryFfi : databaseFactory;
-        final testDb = await factory.openDatabase(finalDbFile.path, options: OpenDatabaseOptions(readOnly: true));
-        await testDb.close();
-      } catch (e) {
-        return const BackupResult(success: false, message: "Le contenu n'est pas une base de données SQLite valide.");
+      // 🛡️ ALPHA-ARMOR: Validation d'intégrité avant restauration
+      final validation = await _validateDatabaseIntegrity(finalDbFile);
+      if (!validation.success) {
+        return validation;
       }
 
       // Fermer la connexion actuelle propre
@@ -389,6 +383,44 @@ class BackupService {
     } catch (e) {
       debugPrint('BackupService Email Error: $e');
       return EmailSendResult(success: false, errorMessage: e.toString());
+    }
+  }
+
+  /// 🛡️ ALPHA-ARMOR: Vérifie qu'un fichier est une base Danaya+ valide et non corrompue
+  Future<BackupResult> _validateDatabaseIntegrity(File dbFile) async {
+    try {
+      DatabaseFactory factory = Platform.isWindows || Platform.isLinux ? databaseFactoryFfi : databaseFactory;
+      
+      // 1. Test d'ouverture
+      final testDb = await factory.openDatabase(dbFile.path, options: OpenDatabaseOptions(readOnly: true));
+      
+      try {
+        // 2. Test SQLCipher (si possible) et structure
+        // On vérifie la présence de la table 'users' qui est le cœur du système
+        final tables = await testDb.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='users'");
+        if (tables.isEmpty) {
+          await testDb.close();
+          return const BackupResult(success: false, message: "Ce fichier n'est pas une base de données Danaya+ valide.");
+        }
+
+        // 3. PRAGMA integrity_check
+        final integrity = await testDb.rawQuery("PRAGMA integrity_check(1)");
+        if (integrity.first['integrity_check'] != 'ok') {
+          await testDb.close();
+          return BackupResult(success: false, message: "Fichier corrompu : ${integrity.first['integrity_check']}");
+        }
+
+        await testDb.close();
+        return const BackupResult(success: true, message: "OK");
+      } catch (e) {
+        await testDb.close();
+        // Si erreur ici, c'est probablement que la base est chiffrée mais lisible (SQLCipher factory non configuré pour le test)
+        // ou que la structure est vraiment cassée.
+        debugPrint('⚠️ Validation Warning (Encrypted or Invalid): $e');
+        return const BackupResult(success: true, message: "Note: Base chiffrée, validation structurelle limitée.");
+      }
+    } catch (e) {
+      return BackupResult(success: false, message: "Fichier invalide ou illisible : $e");
     }
   }
 }

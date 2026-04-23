@@ -97,6 +97,7 @@ class _RuleCard extends ConsumerWidget {
             Switch(
               value: rule.isActive,
               onChanged: (_) => ref.read(ruleManagerProvider.notifier).toggleRule(rule.id),
+              activeThumbColor: theme.colorScheme.primary,
             ),
             IconButton(
               icon: const Icon(FluentIcons.delete_24_regular, color: Colors.redAccent),
