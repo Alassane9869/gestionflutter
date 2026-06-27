@@ -2,6 +2,11 @@
 cmake_minimum_required(VERSION 3.14)
 project(danaya_plus LANGUAGES CXX)
 
+# Ensure FLUTTER_TARGET_PLATFORM is defined globally for all subdirectories and plugins
+if(NOT DEFINED FLUTTER_TARGET_PLATFORM)
+  set(FLUTTER_TARGET_PLATFORM "windows-x64")
+endif()
+
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
 set(BINARY_NAME "danaya_plus")
