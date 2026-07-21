@@ -176,6 +176,7 @@ class ShopSettingsNotifier extends AsyncNotifier<ShopSettings> {
       elevenLabsApiKey: p.getString('${_prefix}elevenLabsApiKey') ?? '',
       elevenLabsVoiceId: p.getString('${_prefix}elevenLabsVoiceId') ?? '',
       allowCloudAiActions: p.getBool('${_prefix}allowCloudAiActions') ?? false,
+      enableAiStreaming: p.getBool('${_prefix}enableAiStreaming') ?? true,
       whatsappToken: p.getString('${_prefix}whatsappToken') ?? '',
       whatsappPhoneNumberId: p.getString('${_prefix}whatsappPhoneNumberId') ?? '',
       titleReceipt: p.getString('${_prefix}titleReceipt') ?? 'TICKET DE CAISSE',
@@ -419,6 +420,7 @@ class ShopSettingsNotifier extends AsyncNotifier<ShopSettings> {
     setString('${_prefix}elevenLabsApiKey', s.elevenLabsApiKey, prev?.elevenLabsApiKey);
     setString('${_prefix}elevenLabsVoiceId', s.elevenLabsVoiceId, prev?.elevenLabsVoiceId);
     setBool('${_prefix}allowCloudAiActions', s.allowCloudAiActions, prev?.allowCloudAiActions);
+    setBool('${_prefix}enableAiStreaming', s.enableAiStreaming, prev?.enableAiStreaming);
     setString('${_prefix}whatsappToken', s.whatsappToken, prev?.whatsappToken);
     setString('${_prefix}whatsappPhoneNumberId', s.whatsappPhoneNumberId, prev?.whatsappPhoneNumberId);
     setString('${_prefix}templateFiscalSettings', jsonEncode(s.templateFiscalSettings), prev != null ? jsonEncode(prev.templateFiscalSettings) : null);

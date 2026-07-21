@@ -284,6 +284,51 @@ class _VirtualAssistantWidgetState extends ConsumerState<VirtualAssistantWidget>
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<PendingAiAction?>(pendingAiActionProvider, (prev, next) {
+      if (next != null) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: const [
+                Icon(FluentIcons.warning_24_filled, color: Colors.orange),
+                SizedBox(width: 8),
+                Text("Confirmation Requise", style: TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
+            content: Text(
+              next.message,
+              style: const TextStyle(fontSize: 14, height: 1.4),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  ref.read(pendingAiActionProvider.notifier).clear();
+                  Navigator.of(context).pop();
+                },
+                child: const Text("Annuler"),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  ref.read(assistantProvider.notifier).confirmPendingAction(next);
+                  ref.read(pendingAiActionProvider.notifier).clear();
+                  Navigator.of(context).pop();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                child: const Text("Confirmer"),
+              ),
+            ],
+          ),
+        );
+      }
+    });
+
     final state = ref.watch(assistantProvider);
     final voiceState = ref.watch(voiceServiceProvider);
     _cachedVoiceNotifier = ref.read(voiceServiceProvider.notifier);
@@ -2929,7 +2974,9 @@ class _ChatBubble extends ConsumerWidget {
                               letterSpacing: -0.1,
                             ),
                           )
-                        else if (msg.isStreaming && ref.watch(assistantProvider.select((s) => s.isOpen)))
+                        else if (msg.isStreaming &&
+                                 ref.watch(assistantProvider.select((s) => s.isOpen)) &&
+                                 ref.watch(shopSettingsProvider).value?.enableAiStreaming != true)
                           _TypewriterMarkdown(
                             text: msg.text.replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n'),
                             styleSheet: styleSheet,

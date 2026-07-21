@@ -186,4 +186,76 @@ class DeepSeekService {
           "👉 **Pas de panique :** Je reste disponible hors-ligne grâce à mon intelligence locale pour gérer votre boutique !";
     }
   }
+
+  /// Appelle l'assistant intelligent DeepSeek en mode Streaming de jetons.
+  Stream<String> askAssistantStream(
+    String prompt,
+    List<Map<String, String>> conversationHistory,
+  ) async* {
+    if (apiKey.isEmpty) {
+      yield "🔑 **La clé d'accès à l'assistant en ligne n'est pas configurée.**\n\nAllez dans vos Paramètres pour l'ajouter.";
+      return;
+    }
+
+    final url = Uri.parse('$baseUrl/chat/completions');
+
+    final messages = [
+      {'role': 'system', 'content': _buildSystemPrompt()},
+      ...conversationHistory,
+      {'role': 'user', 'content': prompt},
+    ];
+
+    final request = http.Request('POST', url);
+    request.headers['Content-Type'] = 'application/json; charset=utf-8';
+    request.headers['Authorization'] = 'Bearer $apiKey';
+    request.body = jsonEncode({
+      'model': model,
+      'messages': messages,
+      'temperature': 0.7,
+      'max_tokens': 4000,
+      'stream': true,
+    });
+
+    try {
+      if (kDebugMode) debugPrint('[DeepSeek Stream] Démarrage flux avec $model');
+      final client = http.Client();
+      final streamedResponse = await client.send(request).timeout(const Duration(seconds: 15));
+
+      if (streamedResponse.statusCode == 200) {
+        final stream = streamedResponse.stream
+            .transform(utf8.decoder)
+            .transform(const LineSplitter());
+
+        await for (final line in stream) {
+          final cleanLine = line.trim();
+          if (cleanLine.startsWith('data:')) {
+            final jsonStr = cleanLine.substring(5).trim();
+            if (jsonStr == '[DONE]') {
+              break;
+            }
+            if (jsonStr.isNotEmpty) {
+              try {
+                final data = jsonDecode(jsonStr);
+                if (data['choices'] != null && data['choices'].isNotEmpty) {
+                  final delta = data['choices'][0]['delta'];
+                  if (delta != null && delta['content'] != null) {
+                    final chunkText = delta['content'] as String;
+                    if (chunkText.isNotEmpty) {
+                      yield chunkText;
+                    }
+                  }
+                }
+              } catch (_) {}
+            }
+          }
+        }
+      } else {
+        if (kDebugMode) debugPrint('[DeepSeek Stream Error] Code : ${streamedResponse.statusCode}');
+        yield "📡 **Erreur lors du streaming des données.** Code: ${streamedResponse.statusCode}";
+      }
+    } catch (e) {
+      if (kDebugMode) debugPrint('[DeepSeek Stream Exception] $e');
+      yield "📡 **Erreur de connexion réseau** lors de la récupération des données de l'IA.";
+    }
+  }
 }

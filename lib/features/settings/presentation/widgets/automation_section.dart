@@ -29,6 +29,8 @@ class AutomationSettingsSection extends ConsumerWidget {
   final ValueChanged<String?> onCloudAiProviderChanged;
   final bool allowCloudAiActions;
   final ValueChanged<bool> onAllowCloudAiActionsChanged;
+  final bool enableAiStreaming;
+  final ValueChanged<bool> onEnableAiStreamingChanged;
   final TextEditingController deepSeekApiKeyCtrl;
   final TextEditingController geminiApiKeyCtrl;
   final TextEditingController elevenLabsApiKeyCtrl;
@@ -55,6 +57,8 @@ class AutomationSettingsSection extends ConsumerWidget {
     required this.onCloudAiProviderChanged,
     required this.allowCloudAiActions,
     required this.onAllowCloudAiActionsChanged,
+    required this.enableAiStreaming,
+    required this.onEnableAiStreamingChanged,
     required this.deepSeekApiKeyCtrl,
     required this.geminiApiKeyCtrl,
     required this.elevenLabsApiKeyCtrl,
@@ -423,6 +427,17 @@ class AutomationSettingsSection extends ConsumerWidget {
                         onChanged: onAllowCloudAiActionsChanged,
                         activeThumbColor: c.violet,
                         icon: FluentIcons.bot_24_filled,
+                      ),
+                      const SizedBox(height: 14),
+                      PremiumSettingsWidgets.buildCompactSwitch(
+                        context,
+                        title: "Réponses IA en temps réel (Streaming)",
+                        subtitle:
+                            "Affiche les réponses mot par mot sans temps d'attente",
+                        value: enableAiStreaming,
+                        onChanged: onEnableAiStreamingChanged,
+                        activeThumbColor: c.violet,
+                        icon: FluentIcons.chat_24_regular,
                       ),
                       const Divider(height: 32),
                       Row(

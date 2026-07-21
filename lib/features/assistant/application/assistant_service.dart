@@ -139,6 +139,30 @@ class ProactiveAlertNotifier extends Notifier<ProactiveAlertData?> {
   void clear() => state = null;
 }
 
+class PendingAiAction {
+  final String actionType;
+  final Map<String, String> params;
+  final String message;
+
+  PendingAiAction({
+    required this.actionType,
+    required this.params,
+    required this.message,
+  });
+}
+
+class PendingAiActionNotifier extends Notifier<PendingAiAction?> {
+  @override
+  PendingAiAction? build() => null;
+  
+  void set(PendingAiAction? val) => state = val;
+  void clear() => state = null;
+}
+
+final pendingAiActionProvider = NotifierProvider<PendingAiActionNotifier, PendingAiAction?>(
+  PendingAiActionNotifier.new,
+);
+
 final proactiveAlertProvider = NotifierProvider<ProactiveAlertNotifier, ProactiveAlertData?>(
   ProactiveAlertNotifier.new,
 );
@@ -3442,32 +3466,95 @@ $memoryPrompt
 
       String aiResponse = "";
 
-      if (settings.cloudAiProvider == 'gemini') {
-        final user = ref.read(authServiceProvider).value;
-        final isAdmin = user?.isAdmin ?? false;
-        final String? displayName = user != null ? (user.firstName ?? user.username) : null;
-        final apiService = GeminiService(
-          apiKey: settings.geminiApiKey,
-          model: 'gemini-3.5-flash',
-          businessContext: businessContext,
-          isAdmin: isAdmin,
-          userName: displayName,
+      if (settings.enableAiStreaming) {
+        // 1. Add an empty streaming message so it shows up immediately in the UI
+        final tempMessage = AssistantMessage(
+          text: "",
+          isStreaming: true,
+          isUser: false,
+          timestamp: DateTime.now(),
         );
-        aiResponse = await apiService.askAssistant(
-          text,
-          history,
-          attachmentBytes: attachmentBytes,
-          attachmentMimeType: attachmentMimeType,
+        state = state.copyWith(
+          messages: [...state.messages, tempMessage],
+          isTyping: false,
         );
+        
+        Stream<String> contentStream;
+        
+        if (settings.cloudAiProvider == 'gemini') {
+          final user = ref.read(authServiceProvider).value;
+          final isAdmin = user?.isAdmin ?? false;
+          final String? displayName = user != null ? (user.firstName ?? user.username) : null;
+          final apiService = GeminiService(
+            apiKey: settings.geminiApiKey,
+            model: 'gemini-3.5-flash',
+            businessContext: businessContext,
+            isAdmin: isAdmin,
+            userName: displayName,
+          );
+          contentStream = apiService.askAssistantStream(
+            text,
+            history,
+            attachmentBytes: attachmentBytes,
+            attachmentMimeType: attachmentMimeType,
+          );
+        } else {
+          final user = ref.read(authServiceProvider).value;
+          final String? displayName = user != null ? (user.firstName ?? user.username) : null;
+          final apiService = DeepSeekService(
+            apiKey: settings.deepSeekApiKey,
+            businessContext: businessContext,
+            userName: displayName,
+          );
+          contentStream = apiService.askAssistantStream(text, history);
+        }
+        
+        await for (final chunk in contentStream) {
+          aiResponse += chunk;
+          
+          // Update the last message in state
+          final updatedMessages = List<AssistantMessage>.from(state.messages);
+          if (updatedMessages.isNotEmpty) {
+            final lastIndex = updatedMessages.length - 1;
+            updatedMessages[lastIndex] = AssistantMessage(
+              text: aiResponse,
+              isStreaming: true,
+              isError: false,
+              isUser: false,
+              timestamp: updatedMessages[lastIndex].timestamp,
+            );
+            state = state.copyWith(messages: updatedMessages);
+          }
+        }
       } else {
-        final user = ref.read(authServiceProvider).value;
-        final String? displayName = user != null ? (user.firstName ?? user.username) : null;
-        final apiService = DeepSeekService(
-          apiKey: settings.deepSeekApiKey,
-          businessContext: businessContext,
-          userName: displayName,
-        );
-        aiResponse = await apiService.askAssistant(text, history);
+        // Original non-streaming implementation
+        if (settings.cloudAiProvider == 'gemini') {
+          final user = ref.read(authServiceProvider).value;
+          final isAdmin = user?.isAdmin ?? false;
+          final String? displayName = user != null ? (user.firstName ?? user.username) : null;
+          final apiService = GeminiService(
+            apiKey: settings.geminiApiKey,
+            model: 'gemini-3.5-flash',
+            businessContext: businessContext,
+            isAdmin: isAdmin,
+            userName: displayName,
+          );
+          aiResponse = await apiService.askAssistant(
+            text,
+            history,
+            attachmentBytes: attachmentBytes,
+            attachmentMimeType: attachmentMimeType,
+          );
+        } else {
+          final user = ref.read(authServiceProvider).value;
+          final String? displayName = user != null ? (user.firstName ?? user.username) : null;
+          final apiService = DeepSeekService(
+            apiKey: settings.deepSeekApiKey,
+            businessContext: businessContext,
+            userName: displayName,
+          );
+          aiResponse = await apiService.askAssistant(text, history);
+        }
       }
 
       final isErr = aiResponse.startsWith("📡") || 
@@ -3502,9 +3589,30 @@ $memoryPrompt
         textToShow = textToShow.replaceAll(RegExp(r'\[ACTION:.*?\]'), '').trim();
       }
 
-      if (isErr) {
-        addAssistantMessage(textToShow, isStreaming: false, isError: true);
+      if (settings.enableAiStreaming) {
+        // Streaming final state update (turn off streaming flag)
+        final updatedMessages = List<AssistantMessage>.from(state.messages);
+        if (updatedMessages.isNotEmpty) {
+          final lastIndex = updatedMessages.length - 1;
+          updatedMessages[lastIndex] = AssistantMessage(
+            text: textToShow,
+            isStreaming: false,
+            isError: isErr,
+            isUser: false,
+            timestamp: updatedMessages[lastIndex].timestamp,
+          );
+          state = state.copyWith(messages: updatedMessages);
+        }
+        _saveChatHistory();
       } else {
+        if (isErr) {
+          addAssistantMessage(textToShow, isStreaming: false, isError: true);
+        } else {
+          addAssistantMessage(textToShow, isStreaming: true); // Let local typewriter run
+        }
+      }
+
+      if (!isErr) {
         _validateActionClaims(textToShow, aiResponse, executedActions, settings.allowCloudAiActions);
       }
     } catch (e) {
@@ -3629,7 +3737,57 @@ $memoryPrompt
     return params;
   }
 
+  Future<void> confirmPendingAction(PendingAiAction pending) async {
+    final settings = ref.read(shopSettingsProvider).value;
+    if (settings != null) {
+      try {
+        await _executeCloudActionDirect(pending.actionType, pending.params, settings);
+      } catch (e) {
+        if (kDebugMode) debugPrint("Error executing confirmed action: $e");
+      }
+    }
+  }
+
   Future<void> _executeCloudAction(String type, Map<String, String> params, ShopSettings settings) async {
+    final bool isCritical = type == 'DELETE_CLIENT' ||
+                            type == 'DELETE_QUOTE' ||
+                            type == 'ADD_EXPENSE' ||
+                            type == 'SETTLE_CLIENT_DEBT' ||
+                            type == 'CLEAR_MEMORIES';
+    if (isCritical) {
+      String confirmationMessage = "L'assistant souhaite effectuer cette action.";
+      if (type == 'DELETE_CLIENT') {
+        final clientQuery = params['client_name'] ?? params['name'] ?? params['client_id'] ?? '';
+        confirmationMessage = "L'assistant souhaite supprimer le client \"$clientQuery\".\nConfirmez-vous cette action destructive ?";
+      } else if (type == 'DELETE_QUOTE') {
+        final quoteNum = params['quote_number'] ?? '';
+        confirmationMessage = "L'assistant souhaite supprimer le devis \"$quoteNum\".\nConfirmez-vous cette action destructive ?";
+      } else if (type == 'ADD_EXPENSE') {
+        final amount = params['amount'] ?? '0';
+        final desc = params['description'] ?? 'Dépense';
+        confirmationMessage = "L'assistant souhaite enregistrer une dépense (sortie de caisse) de $amount FCFA ($desc).\nConfirmez-vous cette action financière ?";
+      } else if (type == 'SETTLE_CLIENT_DEBT') {
+        final clientQuery = params['client_name'] ?? params['name'] ?? params['client_id'] ?? '';
+        final amount = params['amount'] ?? '0';
+        confirmationMessage = "L'assistant souhaite enregistrer un encaissement de dette de $amount FCFA pour le client \"$clientQuery\".\nConfirmez-vous cette action financière ?";
+      } else if (type == 'CLEAR_MEMORIES') {
+        confirmationMessage = "L'assistant souhaite effacer toute la mémoire à long terme de l'IA.\nConfirmez-vous cette action destructive ?";
+      }
+      
+      ref.read(pendingAiActionProvider.notifier).set(PendingAiAction(
+        actionType: type,
+        params: params,
+        message: confirmationMessage,
+      ));
+      
+      addAssistantMessage("🛡️ **Sécurité** : J'ai besoin de votre confirmation pour exécuter cette action critique.");
+      return;
+    }
+    
+    await _executeCloudActionDirect(type, params, settings);
+  }
+
+  Future<void> _executeCloudActionDirect(String type, Map<String, String> params, ShopSettings settings) async {
     switch (type) {
       case 'RENAME_SHOP':
         final name = params['name'];

@@ -152,6 +152,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _useCloudAi = false;
   String _cloudAiProvider = 'gemini';
   bool _allowCloudAiActions = false;
+  bool _enableAiStreaming = true;
   final _deepSeekApiKeyCtrl = TextEditingController();
   final _geminiApiKeyCtrl = TextEditingController();
   final _elevenLabsApiKeyCtrl = TextEditingController();
@@ -832,6 +833,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (_useCloudAi != s.useCloudAi) _useCloudAi = s.useCloudAi;
     if (_cloudAiProvider != s.cloudAiProvider) _cloudAiProvider = s.cloudAiProvider;
     if (_allowCloudAiActions != s.allowCloudAiActions) _allowCloudAiActions = s.allowCloudAiActions;
+    if (_enableAiStreaming != s.enableAiStreaming) _enableAiStreaming = s.enableAiStreaming;
     if (_isAutoLockEnabled != s.isAutoLockEnabled) _isAutoLockEnabled = s.isAutoLockEnabled;
 
     // Sync text inputs only if their values changed externally
@@ -977,6 +979,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _useCloudAi = s.useCloudAi;
     _cloudAiProvider = s.cloudAiProvider;
     _allowCloudAiActions = s.allowCloudAiActions;
+    _enableAiStreaming = s.enableAiStreaming;
     _deepSeekApiKeyCtrl.text = s.deepSeekApiKey;
     _geminiApiKeyCtrl.text = s.geminiApiKey;
     _elevenLabsApiKeyCtrl.text = s.elevenLabsApiKey;
@@ -1193,6 +1196,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       useCloudAi: _useCloudAi,
       cloudAiProvider: _cloudAiProvider,
       allowCloudAiActions: _allowCloudAiActions,
+      enableAiStreaming: _enableAiStreaming,
       deepSeekApiKey: _deepSeekApiKeyCtrl.text.trim(),
       geminiApiKey: _geminiApiKeyCtrl.text.trim(),
       elevenLabsApiKey: _elevenLabsApiKeyCtrl.text.trim(),
@@ -2053,6 +2057,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           onCloudAiProviderChanged: (v) => setState(() { _cloudAiProvider = v!; _saveDebounced(); }),
           allowCloudAiActions: _allowCloudAiActions,
           onAllowCloudAiActionsChanged: (v) => setState(() { _allowCloudAiActions = v; _saveDebounced(); }),
+          enableAiStreaming: _enableAiStreaming,
+          onEnableAiStreamingChanged: (v) => setState(() { _enableAiStreaming = v; _saveDebounced(); }),
           deepSeekApiKeyCtrl: _deepSeekApiKeyCtrl,
           geminiApiKeyCtrl: _geminiApiKeyCtrl,
           elevenLabsApiKeyCtrl: _elevenLabsApiKeyCtrl,

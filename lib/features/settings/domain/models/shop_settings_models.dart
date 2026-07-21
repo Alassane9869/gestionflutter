@@ -269,6 +269,7 @@ class ShopSettings {
   final String elevenLabsApiKey;
   final String elevenLabsVoiceId;
   final bool allowCloudAiActions;
+  final bool enableAiStreaming;
 
   // WhatsApp API Settings
   final String whatsappToken;
@@ -426,6 +427,7 @@ class ShopSettings {
     this.elevenLabsApiKey = '',
     this.elevenLabsVoiceId = '',
     this.allowCloudAiActions = false,
+    this.enableAiStreaming = true,
     this.whatsappToken = '',
     this.whatsappPhoneNumberId = '',
     this.showTaxOnTickets = true,
@@ -566,6 +568,7 @@ class ShopSettings {
     String? elevenLabsApiKey,
     String? elevenLabsVoiceId,
     bool? allowCloudAiActions,
+    bool? enableAiStreaming,
     String? whatsappToken,
     String? whatsappPhoneNumberId,
     Map<String, bool>? templateFiscalSettings,
@@ -724,6 +727,7 @@ class ShopSettings {
       elevenLabsApiKey: elevenLabsApiKey ?? this.elevenLabsApiKey,
       elevenLabsVoiceId: elevenLabsVoiceId ?? this.elevenLabsVoiceId,
       allowCloudAiActions: allowCloudAiActions ?? this.allowCloudAiActions,
+      enableAiStreaming: enableAiStreaming ?? this.enableAiStreaming,
       whatsappToken: whatsappToken ?? this.whatsappToken,
       whatsappPhoneNumberId: whatsappPhoneNumberId ?? this.whatsappPhoneNumberId,
       templateFiscalSettings:

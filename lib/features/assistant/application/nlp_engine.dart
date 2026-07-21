@@ -210,7 +210,7 @@ class NlpEngine {
   // ── SYNONYM DICTIONARY (800+ mappings) ──────────────────────────────
   static final Map<String, List<String>> _synonyms = {
     // Greetings
-    'bonjour': ['salut', 'hello', 'yo', 'salam', 'bonsoir', 'bsr', 'bjr', 'hi', 'hey', 'coucou', 'wesh', 'slt', 'allo', 'hola', 'cc', 'bon matin', 'enchanté', 're', 're-bonjour', 'bienvenue', 'wesh', 'salamalekum', 'coucou'],
+    'bonjour': ['salut', 'hello', 'yo', 'salam', 'bonsoir', 'bsr', 'bjr', 'hi', 'hey', 'coucou', 'wesh', 'slt', 'allo', 'hola', 'cc', 'bon matin', 'enchanté', 're', 're-bonjour', 'bienvenue', 'wesh', 'salamalekum', 'coucou', 'sani', 'anisségé', 'anissege', 'i ni sogoma', 'na nga def', 'jerejef'],
     // Farewell
     'aurevoir': ['bye', 'ciao', 'a+', 'bbye', 'tchao', 'adieu', 'aplus', 'bonne nuit', 'bonne soiree', 'a la prochaine', 'demain', 'quitter', 'fermer', 'finir', 'partir', 'ciao', 'ciao ciao'],
     // Thanks
@@ -220,9 +220,9 @@ class NlpEngine {
     // Stock / Inventory
     'stock': ['inventaire', 'gestion produits', 'produit', 'produits', 'article', 'articles', 'marchandise', 'rupture', 'alerte', 'alertes', 'manque', 'epuise', 'disponible', 'quantite', 'qte', 'entrepot', 'magasin', 'rayon', 'catalogue', 'reference', 'ref', 'cagibi', 'reserve', 'boisson', 'materiel', 'bien', 'biens', 'item', 'items', 'disponibilité', 'physique', 'audit stock', 'marchandises', 'colis'],
     // Finance
-    'finance': ['tresorerie', 'treso', 'argent', 'sous', 'thune', 'cash', 'cfa', 'fcfa', 'depense', 'depenses', 'charge', 'charges', 'loyer', 'transport', 'profit', 'perte', 'bilan', 'solde', 'rentabilite', 'marge', 'benefice', 'fric', 'blé', 'compte', 'banque', 'caisse', 'decaissement', 'frais', 'comptabilité', 'compta', 'économie', 'économiser', 'epargne', 'entrée', 'sortie', 'liquide', 'espèces'],
+    'finance': ['tresorerie', 'treso', 'argent', 'sous', 'thune', 'cash', 'cfa', 'fcfa', 'depense', 'depenses', 'charge', 'charges', 'loyer', 'transport', 'profit', 'perte', 'bilan', 'solde', 'rentabilite', 'marge', 'benefice', 'fric', 'blé', 'compte', 'banque', 'caisse', 'decaissement', 'frais', 'comptabilité', 'compta', 'économie', 'économiser', 'epargne', 'entrée', 'sortie', 'liquide', 'espèces', 'wari', 'halis', 'xalis', 'doly'],
     // Clients
-    'client': ['clients', 'dette', 'dettes', 'credit', 'credits', 'debiteur', 'debiteurs', 'creance', 'creances', 'acheteur', 'fidele', 'fidelite', 'clientele', 'consommateur', 'habitué', 'impayé', 'impayes', 'compte client', 'fiche client', 'carnet', 'visiteur', 'passager'],
+    'client': ['clients', 'dette', 'dettes', 'credit', 'credits', 'debiteur', 'debiteurs', 'creance', 'creances', 'acheteur', 'fidele', 'fidelite', 'clientele', 'consommateur', 'habitué', 'impayé', 'impayes', 'compte client', 'fiche client', 'carnet', 'visiteur', 'passager', 'sigi'],
     // Suppliers
     'fournisseur': ['fournisseurs', 'commande', 'approvisionnement', 'achat', 'achats', 'livraison', 'livrer', 'restock', 'reapprovisionnement', 'grossiste', 'livreur', 'fabricant', 'partenaire', 'société', 'entité', 'fournisseur', 'fournisseurs'],
     // Security
@@ -239,8 +239,8 @@ class NlpEngine {
     'mouvements': ['mouvement', 'historique stock', 'entree', 'sortie', 'relevé', 'flux'],
     'historique': ['historique vente', 'anciennes ventes', 'passe', 'recapitulatif', 'recap', 'journal'],
     'devis': ['proforma', 'facture proforma', 'devis client', 'estimation', 'bordereau'],
-    'magasin': ['magasins', 'entrepot', 'succursale', 'depot', 'boutiques', 'local', 'site', 'emplacement'],
-    'dettes': ['dette', 'impayes', 'credits', 'creances', 'reliquat', 'balance'],
+    'magasin': ['magasins', 'entrepot', 'succursale', 'depot', 'boutiques', 'local', 'site', 'emplacement', 'dogo', 'boutiki'],
+    'dettes': ['dette', 'impayes', 'credits', 'creances', 'reliquat', 'balance', 'doni doni', 'doni-doni', 'bor'],
     'depenses': ['depense', 'charge', 'frais', 'decaissement', 'sorties argent', 'facture fournisseur'],
     'alertes': ['alerte', 'rupture', 'minimum', 'seuil', 'critique', 'danger', 'attention', 'vide'],
     'audit': ['controle', 'verification', 'inventaire physique', 'comptage', 'physique', 'révision'],

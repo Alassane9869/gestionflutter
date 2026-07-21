@@ -346,6 +346,108 @@ class GeminiService {
         "2. Posez-moi votre question : je basculerai automatiquement sur mon intelligence locale Danaya Copilot hors-ligne pour vous répondre.";
   }
 
+  /// Appelle l'assistant intelligent en mode Streaming de jetons.
+  Stream<String> askAssistantStream(
+    String prompt,
+    List<Map<String, String>> conversationHistory, {
+    List<int>? attachmentBytes,
+    String? attachmentMimeType,
+  }) async* {
+    if (apiKey.isEmpty) {
+      yield "🔑 **La clé d'accès à l'assistant en ligne n'est pas configurée.**\n\nAllez dans vos Paramètres pour l'ajouter.";
+      return;
+    }
+
+    final currentModel = model.isNotEmpty ? model : 'gemini-3.5-flash';
+    final url = Uri.parse('$baseUrl/$currentModel:streamGenerateContent?alt=sse');
+
+    final contents = <Map<String, dynamic>>[];
+    for (var msg in conversationHistory) {
+      contents.add({
+        'role': msg['role'] == 'user' ? 'user' : 'model',
+        'parts': [{'text': msg['content']}]
+      });
+    }
+
+    final userParts = <Map<String, dynamic>>[];
+    if (attachmentBytes != null && attachmentMimeType != null) {
+      userParts.add({
+        'inlineData': {
+          'mimeType': attachmentMimeType,
+          'data': base64Encode(attachmentBytes),
+        }
+      });
+    }
+    userParts.add({'text': prompt.isNotEmpty ? prompt : "Décris cette pièce ou ce document joint de manière synthétique."});
+
+    contents.add({
+      'role': 'user',
+      'parts': userParts,
+    });
+
+    final requestBody = <String, dynamic>{
+      'systemInstruction': {
+        'parts': [{'text': _buildSystemPrompt()}]
+      },
+      'contents': contents,
+      'generationConfig': {
+        'temperature': 0.7,
+        'maxOutputTokens': 4000,
+      },
+    };
+
+    final supportsGrounding = currentModel.contains('2.5');
+    if (supportsGrounding) {
+      requestBody['tools'] = [
+        {'google_search': {}}
+      ];
+    }
+
+    final request = http.Request('POST', url);
+    request.headers['Content-Type'] = 'application/json';
+    request.headers['x-goog-api-key'] = apiKey;
+    request.body = jsonEncode(requestBody);
+
+    try {
+      if (kDebugMode) debugPrint('[Gemini Stream] Démarrage flux avec $currentModel');
+      final client = http.Client();
+      final streamedResponse = await client.send(request).timeout(const Duration(seconds: 15));
+
+      if (streamedResponse.statusCode == 200) {
+        final stream = streamedResponse.stream
+            .transform(utf8.decoder)
+            .transform(const LineSplitter());
+
+        await for (final line in stream) {
+          if (line.startsWith('data:')) {
+            final jsonStr = line.substring(5).trim();
+            if (jsonStr.isNotEmpty) {
+              try {
+                final data = jsonDecode(jsonStr);
+                if (data['candidates'] != null && data['candidates'].isNotEmpty) {
+                  final content = data['candidates'][0]['content'];
+                  if (content != null && content['parts'] != null && content['parts'].isNotEmpty) {
+                    final List parts = content['parts'];
+                    final chunkText = parts.map((p) => p['text']?.toString() ?? '').join('');
+                    if (chunkText.isNotEmpty) {
+                      yield chunkText;
+                    }
+                  }
+                }
+              } catch (_) {}
+            }
+          }
+        }
+      } else {
+        if (kDebugMode) debugPrint('[Gemini Stream Error] Code : ${streamedResponse.statusCode}');
+        yield "📡 **Erreur lors du streaming des données.** Code: ${streamedResponse.statusCode}";
+      }
+    } catch (e) {
+      if (kDebugMode) debugPrint('[Gemini Stream Exception] $e');
+      yield "📡 **Erreur de connexion réseau** lors de la récupération des données de l'IA.";
+    }
+  }
+
   /// Transcrit un fichier audio via l'API Gemini.
   Future<String> transcribeAudio(
     List<int> audioBytes,
