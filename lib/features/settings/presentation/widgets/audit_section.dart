@@ -8,11 +8,13 @@ import '../../../inventory/presentation/widgets/dashboard_widgets.dart';
 class AuditSettingsSection extends StatelessWidget {
   final List<Map<String, dynamic>> logs;
   final VoidCallback onRefresh;
+  final VoidCallback onExport;
 
   const AuditSettingsSection({
     super.key,
     required this.logs,
     required this.onRefresh,
+    required this.onExport,
   });
 
   @override
@@ -27,20 +29,41 @@ class AuditSettingsSection extends StatelessWidget {
           title: "Journal d'Audit Système",
           subtitle: "Historique des 100 dernières actions critiques effectuées",
           color: c.rose,
-          trailing: InkWell(
-            onTap: onRefresh,
-            borderRadius: BorderRadius.circular(8),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(color: c.rose.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
-              child: Row(
-                children: [
-                   Icon(FluentIcons.arrow_sync_16_regular, color: c.rose, size: 18),
-                   const SizedBox(width: 8),
-                   Text("Actualiser", style: TextStyle(color: c.rose, fontSize: 13, fontWeight: FontWeight.bold)),
-                ],
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              InkWell(
+                onTap: onExport,
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(color: c.blue.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+                  child: Row(
+                    children: [
+                       Icon(FluentIcons.arrow_download_16_regular, color: c.blue, size: 18),
+                       const SizedBox(width: 8),
+                       Text("Exporter (Bureau)", style: TextStyle(color: c.blue, fontSize: 13, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 12),
+              InkWell(
+                onTap: onRefresh,
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(color: c.rose.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+                  child: Row(
+                    children: [
+                       Icon(FluentIcons.arrow_sync_16_regular, color: c.rose, size: 18),
+                       const SizedBox(width: 8),
+                       Text("Actualiser", style: TextStyle(color: c.rose, fontSize: 13, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 12),

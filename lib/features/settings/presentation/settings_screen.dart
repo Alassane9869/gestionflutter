@@ -718,6 +718,66 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (mounted) setState(() => _logs = logs);
   }
 
+  Future<void> _exportLogs() async {
+    try {
+      final allLogs = await ref.read(databaseServiceProvider).getActivityLogs(limit: 1000);
+      if (allLogs.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Aucun journal d'activité à exporter.")),
+          );
+        }
+        return;
+      }
+
+      final buffer = StringBuffer();
+      buffer.writeln("=== JOURNAL D'AUDIT SYSTEME DANAYA+ ===");
+      buffer.writeln("Date d'exportation : ${DateTime.now().toIso8601String()}\n");
+      buffer.writeln("Date | Type | Utilisateur | Description");
+      buffer.writeln("--------------------------------------------------------------------------------");
+
+      for (final log in allLogs) {
+        final date = log['date'] ?? '';
+        final type = (log['action_type'] as String?)?.toUpperCase() ?? 'INFO';
+        final user = log['username'] ?? 'Système';
+        final desc = log['description'] ?? 'Pas de détails';
+        buffer.writeln("$date | $type | $user | $desc");
+      }
+
+      String? desktopPath;
+      if (Platform.isWindows) {
+        final userProfile = Platform.environment['USERPROFILE'];
+        if (userProfile != null) {
+          desktopPath = "$userProfile\\Desktop";
+        }
+      }
+      
+      if (desktopPath == null) {
+        final dir = await getDownloadsDirectory() ?? await getTemporaryDirectory();
+        desktopPath = dir.path;
+      }
+
+      final filePath = "$desktopPath\\Journaux_Audit_Danaya_Plus.txt";
+      final file = File(filePath);
+      await file.writeAsString(buffer.toString());
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Journaux d'audit exportés sur le Bureau : Journaux_Audit_Danaya_Plus.txt"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Erreur lors de l'exportation des journaux : $e")),
+        );
+      }
+    }
+  }
+
   void _syncFromProvider(ShopSettings s) {
     if (_thermalPrinter != s.thermalPrinterName) _thermalPrinter = s.thermalPrinterName;
     if (_invoicePrinter != s.invoicePrinterName) _invoicePrinter = s.invoicePrinterName;
@@ -1898,6 +1958,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           openCashDrawer: _openCashDrawer,
           onOpenCashDrawerChanged: (v) { setState(() => _openCashDrawer = v); _saveDebounced(); },
           onTestCashDrawer: _testCashDrawer,
+          onTestPrint: _testPrint,
           directPhysicalPrinting: _directPhysicalPrinting,
           onDirectPhysicalPrintingChanged: (v) { setState(() => _directPhysicalPrinting = v); _saveDebounced(); },
           autoPrintTicket: _autoPrintTicket,
@@ -2054,6 +2115,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         return AuditSettingsSection(
           logs: _logs,
           onRefresh: _loadLogs,
+          onExport: _exportLogs,
         );
       case 13: // Design Interface
         return const AppearanceSettingsSection();

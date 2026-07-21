@@ -42,6 +42,7 @@ class HardwareSettingsSection extends ConsumerWidget {
   final bool openCashDrawer;
   final ValueChanged<bool> onOpenCashDrawerChanged;
   final Function(String?) onTestCashDrawer;
+  final Function(String?, String) onTestPrint;
   final bool directPhysicalPrinting;
   final ValueChanged<bool> onDirectPhysicalPrintingChanged;
   final bool autoPrintTicket;
@@ -76,6 +77,7 @@ class HardwareSettingsSection extends ConsumerWidget {
     required this.openCashDrawer,
     required this.onOpenCashDrawerChanged,
     required this.onTestCashDrawer,
+    required this.onTestPrint,
     required this.directPhysicalPrinting,
     required this.onDirectPhysicalPrintingChanged,
     required this.autoPrintTicket,
@@ -208,37 +210,101 @@ class HardwareSettingsSection extends ConsumerWidget {
               subtitle: "Gestion de l'ouverture physique connectée",
               color: c.emerald,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             PremiumSettingsWidgets.buildCard(
               context,
               padding: const EdgeInsets.all(12),
+              child: PremiumSettingsWidgets.buildCompactSwitch(
+                context, 
+                title: "Ouverture automatique", 
+                subtitle: "Ouvre le tiroir à la fin de la vente", 
+                value: openCashDrawer, 
+                onChanged: onOpenCashDrawerChanged, 
+                activeThumbColor: c.emerald, 
+                icon: FluentIcons.money_16_regular
+              ),
+            ),
+            const SizedBox(height: 16),
+            PremiumSettingsWidgets.buildSectionHeader(
+              context,
+              icon: FluentIcons.wrench_24_filled,
+              title: "Diagnostic & Tests de Matériel",
+              subtitle: "Vérifiez vos imprimantes et tiroirs-caisses connectés",
+              color: c.rose,
+            ),
+            const SizedBox(height: 12),
+            PremiumSettingsWidgets.buildCard(
+              context,
+              padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  PremiumSettingsWidgets.buildCompactSwitch(
-                    context, 
-                    title: "Ouverture automatique", 
-                    subtitle: "Ouvre le tiroir à la fin de la vente", 
-                    value: openCashDrawer, 
-                    onChanged: onOpenCashDrawerChanged, 
-                    activeThumbColor: c.emerald, 
-                    icon: FluentIcons.money_16_regular
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text("Imprimante Thermique (Tickets)", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: c.textPrimary)),
+                            const SizedBox(height: 4),
+                            Text("Imprimer un ticket de test sur : ${thermalPrinter ?? 'Aucune imprimante sélectionnée'}", style: TextStyle(fontSize: 12, color: c.textMuted)),
+                          ],
+                        ),
+                      ),
+                      PremiumSettingsWidgets.buildGradientBtn(
+                        onPressed: () => onTestPrint(thermalPrinter, 'ticket'),
+                        icon: FluentIcons.receipt_20_regular,
+                        label: "IMPRIMER TICKET TEST",
+                        colors: [c.rose, Colors.red],
+                      ),
+                    ],
                   ),
-                  const Divider(),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text("Test manuel d'éjection", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: c.textPrimary)),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Divider(),
+                  ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text("Imprimante A4 (Factures)", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: c.textPrimary)),
+                            const SizedBox(height: 4),
+                            Text("Imprimer une page A4 de test sur : ${invoicePrinter ?? 'Aucune imprimante sélectionnée'}", style: TextStyle(fontSize: 12, color: c.textMuted)),
+                          ],
                         ),
-                        PremiumSettingsWidgets.buildGradientBtn(
-                          onPressed: () => onTestCashDrawer(thermalPrinter),
-                          icon: FluentIcons.door_arrow_left_16_filled,
-                          label: "ÉJECTER MAINTENANT",
-                          colors: [c.emerald, Colors.green],
+                      ),
+                      PremiumSettingsWidgets.buildGradientBtn(
+                        onPressed: () => onTestPrint(invoicePrinter, 'invoice'),
+                        icon: FluentIcons.document_pdf_20_regular,
+                        label: "IMPRIMER PAGE TEST A4",
+                        colors: [c.blue, Colors.lightBlue],
+                      ),
+                    ],
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Divider(),
+                  ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text("Tiroir-Caisse (Impulsion)", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: c.textPrimary)),
+                            const SizedBox(height: 4),
+                            Text("Tester l'ouverture via l'imprimante : ${thermalPrinter ?? 'Aucune'}", style: TextStyle(fontSize: 12, color: c.textMuted)),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                      PremiumSettingsWidgets.buildGradientBtn(
+                        onPressed: () => onTestCashDrawer(thermalPrinter),
+                        icon: FluentIcons.door_arrow_left_16_filled,
+                        label: "TESTER TIROIR-CAISSE",
+                        colors: [c.emerald, Colors.green],
+                      ),
+                    ],
                   ),
                 ],
               ),

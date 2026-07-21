@@ -203,7 +203,14 @@ class CartNotifier extends Notifier<List<PosCartItem>> {
     }).toList();
   }
 
-  double get subtotal => SafeMath.round2(state.fold(0.0, (sum, item) => sum + item.lineTotal));
+  double get subtotal {
+    final rawSubtotal = state.fold(0.0, (sum, item) => sum + item.lineTotal);
+    final settings = ref.read(shopSettingsProvider).value;
+    if (settings != null) {
+      return SafeMath.applyRounding(rawSubtotal, settings.roundingMode);
+    }
+    return SafeMath.round2(rawSubtotal);
+  }
   double get totalDiscountItems =>
       SafeMath.round2(state.fold(0.0, (sum, item) => sum + item.lineDiscountAmount));
   double get totalItems => SafeMath.round2(state.fold(0.0, (sum, item) => sum + item.qty));
@@ -248,12 +255,13 @@ class PosService {
       final settings = _ref.read(shopSettingsProvider).value;
       final isClient = settings?.networkMode == NetworkMode.client;
 
-      final totalAmountSafe = SafeMath.round2(totalAmount);
+      final mode = settings?.roundingMode ?? RoundingMode.none;
+      final totalAmountSafe = SafeMath.applyRounding(totalAmount, mode);
       final amountPaidSafe = SafeMath.round2(amountPaid);
       final discountAmountSafe = SafeMath.round2(discountAmount);
 
       final netAmountPaid = amountPaidSafe > totalAmountSafe ? totalAmountSafe : amountPaidSafe;
-      final creditAmount = isCredit ? SafeMath.round2(totalAmountSafe - netAmountPaid) : 0.0;
+      final creditAmount = isCredit ? SafeMath.applyRounding(totalAmountSafe - netAmountPaid, mode) : 0.0;
 
       final sale = Sale(
         id: saleId,
