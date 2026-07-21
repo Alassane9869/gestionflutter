@@ -60,6 +60,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   int? _daysRemaining;
   Timer? _saveTimer;
   bool _isSavingInternal = false;
+  bool _showDetailOnMobile = false;
 
   // Général
   final _nameCtrl = TextEditingController();
@@ -1445,192 +1446,213 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         error: (e, _) => Center(child: Text('Erreur: $e')),
         data: (settings) {
           _initControllers(settings);
+          final bool isMobile = MediaQuery.of(context).size.width < 900;
           return Row(
             children: [
-              // ── SIDEBAR ULTRA PRO (Affinée) ──
-              Container(
-                width: 250,
-                decoration: BoxDecoration(
-                  color: sidebarColor,
-                  border: Border(right: BorderSide(color: borderColor, width: 1)),
-                ),
-                child: Column(
-                  children: [
-                    // En-tête Sidebar compacte
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 32, 20, 24),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(10),
+              if (!isMobile || !_showDetailOnMobile)
+                // ── SIDEBAR ULTRA PRO (Affinée) ──
+                Container(
+                  width: isMobile ? MediaQuery.of(context).size.width : 250,
+                  decoration: BoxDecoration(
+                    color: sidebarColor,
+                    border: Border(right: BorderSide(color: borderColor, width: isMobile ? 0 : 1)),
+                  ),
+                  child: Column(
+                    children: [
+                      // En-tête Sidebar compacte
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 32, 20, 24),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Icon(FluentIcons.settings_20_filled, 
+                                color: theme.colorScheme.primary, size: 18),
                             ),
-                            child: Icon(FluentIcons.settings_20_filled, 
-                              color: theme.colorScheme.primary, size: 18),
-                          ),
-                          const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text("CONFIGURATION", 
-                                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 1.0, color: theme.colorScheme.primary)),
-                              Text("Boutique & Système", 
-                                style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontWeight: FontWeight.w600)),
-                            ],
-                          ),
-                        ],
+                            const SizedBox(width: 12),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text("CONFIGURATION", 
+                                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 1.0, color: theme.colorScheme.primary)),
+                                Text("Boutique & Système", 
+                                  style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontWeight: FontWeight.w600)),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    const Divider(height: 1),
-                    Expanded(
-                      child: ListView(
-                        padding: const EdgeInsets.fromLTRB(12, 16, 12, 16),
-                        children: _modules.map((module) {
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(14, 16, 14, 8),
-                                child: Text(
-                                  module["title"],
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w900,
-                                    color: theme.colorScheme.primary.withValues(alpha: 0.6),
-                                    letterSpacing: 1.5,
+                      const Divider(height: 1),
+                      Expanded(
+                        child: ListView(
+                          padding: const EdgeInsets.fromLTRB(12, 16, 12, 16),
+                          children: _modules.map((module) {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(14, 16, 14, 8),
+                                  child: Text(
+                                    module["title"],
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w900,
+                                      color: theme.colorScheme.primary.withValues(alpha: 0.6),
+                                      letterSpacing: 1.5,
+                                    ),
                                   ),
                                 ),
-                              ),
-                              ... (module["items"] as List<int>).map((index) {
-                                final isSelected = _selectedIndex == index;
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 4),
-                                  child: Material(
-                                    color: Colors.transparent,
-                                    child: InkWell(
-                                      borderRadius: BorderRadius.circular(10),
-                                      onTap: () {
-                                          setState(() {
-                                            _selectedIndex = index;
-                                            ref.read(settingsTabIndexProvider.notifier).setIndex(index);
-                                          });
-                                          if (index == 11) _loadLogs();
-                                        },
-                                      child: AnimatedContainer(
-                                        duration: const Duration(milliseconds: 200),
-                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                        decoration: BoxDecoration(
-                                          color: isSelected 
-                                              ? theme.colorScheme.primary.withValues(alpha: 0.08)
-                                              : Colors.transparent,
-                                          borderRadius: BorderRadius.circular(10),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            Icon(
-                                              _menuIcons[index],
-                                              size: 18,
-                                              color: isSelected ? theme.colorScheme.primary : (isDark ? Colors.grey.shade400 : Colors.grey.shade600),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                              child: Text(
-                                                _menuItems[index],
-                                                style: TextStyle(
-                                                  fontSize: 14,
-                                                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
-                                                  color: isSelected ? theme.colorScheme.primary : (isDark ? Colors.white70 : Colors.black87),
-                                                ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
+                                ... (module["items"] as List<int>).map((index) {
+                                  final isSelected = _selectedIndex == index;
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 4),
+                                    child: Material(
+                                      color: Colors.transparent,
+                                      child: InkWell(
+                                        borderRadius: BorderRadius.circular(10),
+                                        onTap: () {
+                                            setState(() {
+                                              _selectedIndex = index;
+                                              ref.read(settingsTabIndexProvider.notifier).setIndex(index);
+                                              if (isMobile) {
+                                                _showDetailOnMobile = true;
+                                              }
+                                            });
+                                            if (index == 11) _loadLogs();
+                                          },
+                                        child: AnimatedContainer(
+                                          duration: const Duration(milliseconds: 200),
+                                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                          decoration: BoxDecoration(
+                                            color: isSelected 
+                                                ? theme.colorScheme.primary.withValues(alpha: 0.08)
+                                                : Colors.transparent,
+                                            borderRadius: BorderRadius.circular(10),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                _menuIcons[index],
+                                                size: 18,
+                                                color: isSelected ? theme.colorScheme.primary : (isDark ? Colors.grey.shade400 : Colors.grey.shade600),
                                               ),
-                                            ),
-                                            if (isSelected) ...[
-                                              Container(width: 3, height: 14, decoration: BoxDecoration(color: theme.colorScheme.primary, borderRadius: BorderRadius.circular(2))),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: Text(
+                                                  _menuItems[index],
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                                                    color: isSelected ? theme.colorScheme.primary : (isDark ? Colors.white70 : Colors.black87),
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                              if (isSelected) ...[
+                                                Container(width: 3, height: 14, decoration: BoxDecoration(color: theme.colorScheme.primary, borderRadius: BorderRadius.circular(2))),
+                                              ],
                                             ],
-                                          ],
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                );
-                              }),
-                              const SizedBox(height: 8),
-                            ],
-                          );
-                        }).toList(),
+                                  );
+                                }),
+                                const SizedBox(height: 8),
+                              ],
+                            );
+                          }).toList(),
+                        ),
                       ),
-                    ),
-                    // Sidebar footer was removed to enforce 100% silent saving.
-                    const SizedBox(height: 16),
-                  ],
+                      // Sidebar footer was removed to enforce 100% silent saving.
+                      const SizedBox(height: 16),
+                    ],
+                  ),
                 ),
-              ),
 
-              // ── CONTENT AREA (Scrollable & Responsive) ──
-              Expanded(
-                child: Column(
-                  children: [
-                    // Header Content Raffiné
-                    Container(
-                      padding: const EdgeInsets.fromLTRB(40, 32, 40, 20),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _menuItems[_selectedIndex].toUpperCase(),
-                                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20, letterSpacing: -0.2),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                _getSectionSubtitle(_selectedIndex),
-                                style: TextStyle(color: Colors.grey.shade500, fontSize: 12, fontWeight: FontWeight.w500),
-                              ),
-                            ],
-                          ),
-                          // Optionnel : Bouton d'aide ou état
-                          if (_daysRemaining != null)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(color: Colors.orange.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
-                              child: Text("Licence: $_daysRemaining j restants", style: const TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.w700)),
+              if (!isMobile || _showDetailOnMobile)
+                // ── CONTENT AREA (Scrollable & Responsive) ──
+                Expanded(
+                  child: Column(
+                    children: [
+                      // Header Content Raffiné
+                      Container(
+                        padding: EdgeInsets.fromLTRB(isMobile ? 16 : 40, 32, isMobile ? 16 : 40, 20),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                if (isMobile && _showDetailOnMobile) ...[
+                                  IconButton(
+                                    icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                                    onPressed: () {
+                                      setState(() {
+                                        _showDetailOnMobile = false;
+                                      });
+                                    },
+                                  ),
+                                  const SizedBox(width: 8),
+                                ],
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _menuItems[_selectedIndex].toUpperCase(),
+                                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20, letterSpacing: -0.2),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      _getSectionSubtitle(_selectedIndex),
+                                      style: TextStyle(color: Colors.grey.shade500, fontSize: 12, fontWeight: FontWeight.w500),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
-                        ],
+                            // Optionnel : Bouton d'aide ou état
+                            if (_daysRemaining != null && !isMobile)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(color: Colors.orange.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
+                                child: Text("Licence: $_daysRemaining j restants", style: const TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.w700)),
+                              ),
+                          ],
+                        ),
                       ),
-                    ),
-                    const Divider(height: 1),
-                    
-                    Expanded(
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 300),
-                        switchInCurve: Curves.easeOutCubic,
-                        switchOutCurve: Curves.easeInCubic,
-                        child: _selectedIndex == 4
-                          ? Padding(
-                              key: const ValueKey(4),
-                              padding: const EdgeInsets.all(16),
-                              child: _buildRightContent(context, settings),
-                            )
-                          : SingleChildScrollView(
-                              key: ValueKey(_selectedIndex),
-                              padding: const EdgeInsets.all(40),
-                              child: Center(
-                                child: ConstrainedBox(
-                                  constraints: const BoxConstraints(maxWidth: 900),
-                                  child: _buildRightContent(context, settings),
+                      const Divider(height: 1),
+                      
+                      Expanded(
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 300),
+                          switchInCurve: Curves.easeOutCubic,
+                          switchOutCurve: Curves.easeInCubic,
+                          child: _selectedIndex == 4
+                            ? Padding(
+                                key: const ValueKey(4),
+                                padding: const EdgeInsets.all(16),
+                                child: _buildRightContent(context, settings),
+                              )
+                            : SingleChildScrollView(
+                                key: ValueKey(_selectedIndex),
+                                padding: EdgeInsets.all(isMobile ? 16 : 40),
+                                child: Center(
+                                  child: ConstrainedBox(
+                                    constraints: const BoxConstraints(maxWidth: 900),
+                                    child: _buildRightContent(context, settings),
+                                  ),
                                 ),
                               ),
-                            ),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
             ],
           );
         },
