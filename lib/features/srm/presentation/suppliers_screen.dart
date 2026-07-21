@@ -1,12 +1,15 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:danaya_plus/features/srm/domain/models/supplier.dart';
 import 'package:danaya_plus/features/srm/providers/supplier_providers.dart';
-import 'package:danaya_plus/features/srm/providers/purchase_provider.dart';
+import 'package:danaya_plus/features/srm/providers/srm_service.dart';
 import 'package:danaya_plus/features/srm/domain/models/purchase_order.dart';
 import 'package:danaya_plus/features/auth/application/auth_service.dart';
 import 'package:danaya_plus/features/srm/presentation/supplier_form_dialog.dart';
+import 'package:danaya_plus/core/widgets/map_viewer_dialog.dart';
+import 'package:danaya_plus/features/settings/providers/shop_settings_provider.dart';
 import 'package:danaya_plus/features/srm/presentation/purchase_screen.dart';
 import 'package:danaya_plus/core/widgets/enterprise_widgets.dart';
 import 'package:danaya_plus/core/extensions/ref_extensions.dart';
@@ -16,10 +19,11 @@ import 'package:danaya_plus/core/database/database_service.dart';
 import 'package:danaya_plus/features/finance/providers/treasury_provider.dart';
 import 'package:danaya_plus/features/finance/domain/models/financial_account.dart';
 import 'package:danaya_plus/features/finance/providers/session_providers.dart';
-import 'package:danaya_plus/features/settings/providers/shop_settings_provider.dart';
 import 'package:danaya_plus/core/utils/date_formatter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
+import 'package:danaya_plus/features/inventory/presentation/widgets/dashboard_widgets.dart';
+import 'package:danaya_plus/features/srm/presentation/widgets/purchase_detail_dialog.dart';
 
 class SuppliersScreen extends ConsumerStatefulWidget {
   const SuppliersScreen({super.key});
@@ -96,14 +100,6 @@ class _SuppliersScreenState extends ConsumerState<SuppliersScreen>
     }
   }
 
-  Future<void> _launchMaps(String address) async {
-    final uri = Uri.parse(
-        "https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(address)}");
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
-  }
-
   // ==========================================
   // BUILD
   // ==========================================
@@ -142,12 +138,14 @@ class _SuppliersScreenState extends ConsumerState<SuppliersScreen>
           );
     });
 
+    final c = DashColors.of(context);
+
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: c.bg,
       body: Material(
         type: MaterialType.transparency,
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(28, 24, 28, 0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -195,132 +193,44 @@ class _SuppliersScreenState extends ConsumerState<SuppliersScreen>
   // ==========================================
 
   Widget _buildPremiumHeader(ThemeData theme, bool isDark, Color accent) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 14),
-      decoration: const BoxDecoration(
-        color: Colors.transparent,
+    return Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+      if (Navigator.canPop(context)) ...[
+        IconButton(
+          onPressed: () => Navigator.pop(context),
+          icon: const Icon(FluentIcons.arrow_left_20_regular, size: 20),
+          style: IconButton.styleFrom(
+            backgroundColor: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade100,
+          ),
+        ),
+        const SizedBox(width: 12),
+      ],
+      Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(colors: [accent, accent.withValues(alpha: 0.7)]),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Icon(FluentIcons.building_24_filled, color: Colors.white, size: 22),
       ),
-      child: Row(
-        children: [
-          if (Navigator.canPop(context)) ...[
-            IconButton(
-              onPressed: () => Navigator.pop(context),
-              icon: const Icon(FluentIcons.arrow_left_20_regular, size: 20),
-              style: IconButton.styleFrom(
-                backgroundColor: isDark
-                    ? Colors.white.withValues(alpha: 0.05)
-                    : Colors.grey.shade100,
-              ),
-            ),
-            const SizedBox(width: 12),
-          ],
-          // Animated icon container
-          Container(
-            padding: const EdgeInsets.all(11),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  accent.withValues(alpha: 0.15),
-                  accent.withValues(alpha: 0.08),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: accent.withValues(alpha: 0.2),
-              ),
-            ),
-            child: Icon(FluentIcons.building_24_filled,
-                color: accent, size: 22),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Text("Réseau Fournisseurs",
-                        style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -0.5)),
-                    const SizedBox(width: 10),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: accent.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                            color: accent.withValues(alpha: 0.2)),
-                      ),
-                      child: Text("SRM",
-                          style: TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w900,
-                              color: accent,
-                              letterSpacing: 1)),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 3),
-                Text(
-                    "Gestion de l'approvisionnement & suivi fournisseurs",
-                    style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade500,
-                        fontWeight: FontWeight.w500)),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          // Export button
-          OutlinedButton.icon(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text("Export en cours de développement..."),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
-            icon: const Icon(FluentIcons.arrow_download_20_regular, size: 15),
-            label: const Text("Export",
-                style:
-                    TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
-            style: OutlinedButton.styleFrom(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
-              minimumSize: const Size(0, 38),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
-              side: BorderSide(
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.1)
-                      : Colors.grey.shade300),
-            ),
-          ),
-          const SizedBox(width: 8),
-          FilledButton.icon(
-            onPressed: () => _showAddSupplierDialog(context),
-            icon: const Icon(FluentIcons.person_add_20_filled, size: 16),
-            label: const Text("Nouveau Partenaire",
-                style:
-                    TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-            style: FilledButton.styleFrom(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 18, vertical: 0),
-              minimumSize: const Size(0, 42),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
-              elevation: 0,
-            ),
-          ),
-        ],
+      const SizedBox(width: 14),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text("Réseau Fournisseurs", style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF1F2937))),
+        Text("Gestion de l'approvisionnement & suivi fournisseurs", style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+      ])),
+      FilledButton.icon(
+        onPressed: () => _showAddSupplierDialog(context),
+        icon: const Icon(FluentIcons.person_add_24_regular, size: 18),
+        label: const Text("Nouveau fournisseur", style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, letterSpacing: 0.3)),
+        style: FilledButton.styleFrom(
+          backgroundColor: accent,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          elevation: 2,
+          shadowColor: accent.withValues(alpha: 0.3),
+        ),
       ),
-    );
+    ]);
   }
 
   // ==========================================
@@ -339,161 +249,53 @@ class _SuppliersScreenState extends ConsumerState<SuppliersScreen>
         ? (debtCount / suppliers.length * 100).round()
         : 0;
 
-    return Row(
-      children: [
-        _buildGlassStatCard(
-          isDark: isDark,
-          theme: theme,
-          label: "Partenaires Actifs",
-          value: "${suppliers.length}",
-          icon: FluentIcons.building_retail_more_24_regular,
-          color: accent,
-          subtitle: "$healthyCount à jour · $debtCount en dette",
-          showPulse: false,
-        ),
-        const SizedBox(width: 10),
-        _buildGlassStatCard(
-          isDark: isDark,
-          theme: theme,
-          label: "Volume d'Achats",
-          value: ref.fmt(totalPurchases),
-          icon: FluentIcons.receipt_24_regular,
-          color: const Color(0xFF10B981),
-          subtitle: "Total des approvisionnements",
-          showPulse: false,
-        ),
-        const SizedBox(width: 10),
-        _buildGlassStatCard(
-          isDark: isDark,
-          theme: theme,
-          label: "Encours Fournisseurs",
-          value: ref.fmt(totalDebt),
-          icon: FluentIcons.money_hand_24_regular,
-          color: totalDebt > 0 ? AppTheme.errorClr : Colors.grey,
-          subtitle: "$debtRatio% du réseau en dette",
-          showPulse: totalDebt > 0,
-        ),
-        const SizedBox(width: 10),
-        _buildGlassStatCard(
-          isDark: isDark,
-          theme: theme,
-          label: "Santé du Réseau",
-          value: "${100 - debtRatio}%",
-          icon: FluentIcons.heart_pulse_24_regular,
-          color: debtRatio < 30
-              ? const Color(0xFF10B981)
-              : (debtRatio < 60
-                  ? AppTheme.warningClr
-                  : AppTheme.errorClr),
-          subtitle: debtRatio < 30
-              ? "Excellent état"
-              : (debtRatio < 60 ? "À surveiller" : "Critique"),
-          showPulse: debtRatio >= 60,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildGlassStatCard({
-    required bool isDark,
-    required ThemeData theme,
-    required String label,
-    required String value,
-    required IconData icon,
-    required Color color,
-    required String subtitle,
-    bool showPulse = false,
-  }) {
-    return Expanded(
-      child: AnimatedBuilder(
-        animation: _pulseController,
-        builder: (context, child) {
-          final pulseValue = showPulse ? 0.6 + (_pulseController.value * 0.4) : 1.0;
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(
-              color: isDark ? theme.colorScheme.surface : Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: showPulse
-                    ? color.withValues(alpha: 0.15 * pulseValue)
-                    : (isDark ? Colors.white.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.05)),
-                width: 1,
-              ),
-              boxShadow: [
-                if (showPulse)
-                  BoxShadow(color: color.withValues(alpha: 0.03 * pulseValue), blurRadius: 15),
-              ],
+    return SizedBox(
+      height: 100,
+      child: Row(
+        children: [
+          Expanded(
+            child: _PremiumKpiCard(
+              label: "Partenaires Actifs",
+              value: "${suppliers.length}",
+              icon: FluentIcons.building_retail_more_24_regular,
+              color: accent,
             ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        color.withValues(alpha: 0.15),
-                        color.withValues(alpha: 0.08),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(icon, color: color, size: 20),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        label.toUpperCase(),
-                        style: TextStyle(
-                          color: isDark
-                              ? Colors.grey.shade400
-                              : Colors.grey.shade600,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.7,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          value,
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -0.5,
-                            color: isDark
-                                ? Colors.white
-                                : const Color(0xFF1F2937),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          color: Colors.grey.shade500,
-                          fontSize: 9,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _PremiumKpiCard(
+              label: "Volume d'Achats",
+              value: ref.fmt(totalPurchases),
+              icon: FluentIcons.receipt_24_regular,
+              color: const Color(0xFF10B981),
             ),
-          );
-        },
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _PremiumKpiCard(
+              label: "Encours Fournisseurs",
+              value: ref.fmt(totalDebt),
+              icon: FluentIcons.money_hand_24_regular,
+              color: totalDebt > 0 ? AppTheme.errorClr : Colors.grey,
+              sub: "$debtRatio% du réseau",
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _PremiumKpiCard(
+              label: "Santé du Réseau",
+              value: "${100 - debtRatio}%",
+              icon: FluentIcons.heart_pulse_24_regular,
+              color: debtRatio < 30 ? const Color(0xFF10B981) : AppTheme.errorClr,
+              sub: "$healthyCount à jour",
+            ),
+          ),
+        ],
       ),
     );
   }
+
+
 
   // ==========================================
   // MASTER-DETAIL LAYOUT
@@ -542,55 +344,51 @@ class _SuppliersScreenState extends ConsumerState<SuppliersScreen>
       }
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final bool isWide = constraints.maxWidth >= 900;
-        if (isWide) {
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(
-                width: 370,
-                child:
-                    _buildSupplierListPanel(filtered, isDark, theme, accent),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 250),
-                  switchInCurve: Curves.easeOutCubic,
-                  switchOutCurve: Curves.easeInCubic,
-                  child: _selectedSupplier != null
-                      ? _buildDetailPanel(
-                          _selectedSupplier!, isDark, theme, accent,
-                          key: ValueKey(_selectedSupplier!.id))
-                      : Center(
-                          key: const ValueKey('empty'),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(FluentIcons.person_24_regular,
-                                  size: 48,
-                                  color: Colors.grey.shade600),
-                              const SizedBox(height: 12),
-                              Text("Sélectionnez un fournisseur",
-                                  style: TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.grey.shade500,
-                                      fontWeight: FontWeight.w600)),
-                            ],
-                          ),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // LEFT PANE: Master List
+        Expanded(
+          flex: 4,
+          child: _buildSupplierListPanel(
+            filtered,
+            isDark,
+            theme,
+            accent,
+            onTap: (s) => setState(() => _selectedSupplier = s),
+          ),
+        ),
+        
+        // Divider
+        Container(
+          width: 1,
+          color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.grey.shade200,
+        ),
+        
+        // RIGHT PANE: Details Panel
+        Expanded(
+          flex: 6,
+          child: _selectedSupplier != null
+              ? _buildDetailPanel(_selectedSupplier!, isDark, theme, accent)
+              : Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(FluentIcons.building_retail_24_regular, size: 48, color: Colors.grey.shade400),
+                      const SizedBox(height: 12),
+                      Text(
+                        "Sélectionnez un fournisseur pour voir ses détails",
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade500,
                         ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          );
-        } else {
-          return _buildSupplierListPanel(filtered, isDark, theme, accent,
-              onTap: (s) =>
-                  _showSupplierDetailsDialog(context, s, isDark, theme));
-        }
-      },
+        ),
+      ],
     );
   }
 
@@ -779,15 +577,23 @@ class _SuppliersScreenState extends ConsumerState<SuppliersScreen>
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
               color: isSelected
-                  ? accent.withValues(alpha: 0.04)
-                  : Colors.transparent,
+                  ? accent.withValues(alpha: 0.06)
+                  : (isDark ? const Color(0xFF141620) : const Color(0xFFF9FAFB)),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: isSelected
-                    ? accent.withValues(alpha: 0.2)
-                    : Colors.transparent,
+                    ? accent.withValues(alpha: 0.35)
+                    : (isDark ? const Color(0xFF1A1D24) : const Color(0xFFE5E7EB)),
                 width: 1,
               ),
+              boxShadow: [
+                if (isSelected)
+                  BoxShadow(
+                    color: accent.withValues(alpha: 0.08),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  )
+              ],
             ),
               child: Row(
               children: [
@@ -899,6 +705,12 @@ class _SuppliersScreenState extends ConsumerState<SuppliersScreen>
                       ),
                   ],
                 ),
+                const SizedBox(width: 8),
+                Icon(
+                  FluentIcons.chevron_right_16_regular,
+                  size: 14,
+                  color: isSelected ? accent : (isDark ? Colors.grey.shade600 : Colors.grey.shade400),
+                ),
               ],
             ),
           ),
@@ -934,193 +746,326 @@ class _SuppliersScreenState extends ConsumerState<SuppliersScreen>
     final hasDebt = s.outstandingDebt > 0;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(28),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ===============================
-          // 1. PROFILE HEADER
-          // ===============================
-          _buildProfileHeader(s, isDark, theme, accent, hasDebt),
-          const SizedBox(height: 24),
+          // ──── PREMIUM HERO HEADER ────
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  accent.withValues(alpha: 0.06),
+                  accent.withValues(alpha: 0.02),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: accent.withValues(alpha: 0.12),
+              ),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Avatar / Logo
+                    Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.white,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: accent.withValues(alpha: 0.2),
+                          width: 2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: accent.withValues(alpha: 0.1),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                        image: s.logoPath != null && File(s.logoPath!).existsSync()
+                            ? DecorationImage(
+                                image: FileImage(File(s.logoPath!)),
+                                fit: BoxFit.cover,
+                              )
+                            : null,
+                      ),
+                      alignment: Alignment.center,
+                      child: s.logoPath == null || !File(s.logoPath!).existsSync()
+                          ? Text(
+                              s.name.substring(0, s.name.length > 1 ? 2 : 1).toUpperCase(),
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                  color: accent,
+                                  fontSize: 24),
+                            )
+                          : null,
+                    ),
+                    const SizedBox(width: 20),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            s.name.toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.3,
+                              color: isDark ? Colors.white : const Color(0xFF111827),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 6,
+                            children: [
+                              _buildStatusBadge(
+                                label: hasDebt ? "SOLDE DÛ" : "À JOUR",
+                                icon: hasDebt
+                                    ? FluentIcons.warning_16_regular
+                                    : FluentIcons.checkmark_circle_16_regular,
+                                color: hasDebt
+                                    ? AppTheme.errorClr
+                                    : const Color(0xFF10B981),
+                                isDark: isDark,
+                              ),
+                              if (s.contactName != null && s.contactName!.isNotEmpty)
+                                _buildStatusBadge(
+                                  label: s.contactName!,
+                                  icon: FluentIcons.person_16_regular,
+                                  color: Colors.blue,
+                                  isDark: isDark,
+                                ),
+                              if (s.phone != null && s.phone!.isNotEmpty)
+                                _buildStatusBadge(
+                                  label: s.phone!,
+                                  icon: FluentIcons.phone_16_regular,
+                                  color: Colors.grey,
+                                  isDark: isDark,
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    _buildSupplierMoreMenu(s, isDark, accent),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // ──── INLINE ACTION BUTTONS ────
+                Row(
+                  children: [
+                    if (s.phone != null && s.phone!.isNotEmpty) ...[
+                      _buildActionBtn(FluentIcons.call_16_regular, "Appeler", () => _launchCall(s.phone!), isDark),
+                      const SizedBox(width: 8),
+                      _buildActionBtn(FluentIcons.chat_16_regular, "WhatsApp", () => _launchWhatsApp(s.phone!, s.name, s.outstandingDebt), isDark),
+                      const SizedBox(width: 8),
+                    ],
+                    if (s.email != null && s.email!.isNotEmpty) ...[
+                      _buildActionBtn(FluentIcons.mail_16_regular, "Email", () => _launchEmail(s.email!, s.name), isDark),
+                      const SizedBox(width: 8),
+                    ],
+                    if (s.address != null && s.address!.isNotEmpty)
+                      _buildActionBtn(FluentIcons.location_16_regular, "Carte", () {
+                        final settings = ref.read(shopSettingsProvider).value;
+                        final shopAddress = settings?.address ?? 'Dakar, Senegal';
+                        MapViewerDialog.show(
+                          context,
+                          originAddress: s.address!,
+                          destinationAddress: shopAddress,
+                          originLabel: s.name,
+                          destinationLabel: settings?.name ?? 'Ma Boutique',
+                        );
+                      }, isDark),
+                    const Spacer(),
+                    FilledButton.icon(
+                      onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => PurchaseScreen(supplier: s))),
+                      icon: const Icon(FluentIcons.cart_16_regular, size: 16),
+                      label: const Text("Nouvel achat",
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: accent,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 14),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
 
-          // ===============================
-          // 2. QUICK CONTACT ACTIONS
-          // ===============================
-          _buildContactActionsBar(s, isDark, theme, accent),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
-          // ===============================
-          // 3. FINANCIAL KPI CARDS
-          // ===============================
+          // ──── FINANCIAL TELEMETRY ROW ────
           _buildFinancialKPIs(s, isDark, theme, accent, hasDebt),
-          const SizedBox(height: 24),
 
-          // ===============================
-          // 4. DEBT GAUGE (if applicable)
-          // ===============================
+          const SizedBox(height: 20),
+
+          // ──── DEBT GAUGE ────
           if (hasDebt) ...[
             _buildDebtGauge(s, isDark, theme, accent),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
           ],
 
-          // ===============================
-          // 5. TECHNICAL INFO
-          // ===============================
-          _buildTechnicalInfoSection(s, isDark, theme),
-          const SizedBox(height: 24),
+          // ──── DETAILS GRID ────
+          const Text(
+            "INFORMATIONS DÉTAILLÉES",
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.5,
+              color: Colors.grey,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.grey.shade200,
+              ),
+            ),
+            child: Column(
+              children: [
+                _buildGridInfoRow("Téléphone", s.phone ?? "Non renseigné", FluentIcons.phone_20_regular, isDark, theme),
+                _buildDivider(isDark),
+                _buildGridInfoRow("Adresse Email", s.email ?? "Non renseigné", FluentIcons.mail_20_regular, isDark, theme),
+                _buildDivider(isDark),
+                _buildGridInfoRow("Contact Principal", s.contactName ?? "Non renseigné", FluentIcons.person_20_regular, isDark, theme),
+                if (s.address != null && s.address!.isNotEmpty) ...[
+                  _buildDivider(isDark),
+                  _buildGridInfoRow("Adresse Géographique", s.address!, FluentIcons.location_20_regular, isDark, theme),
+                ],
+              ],
+            ),
+          ),
 
-          // ===============================
-          // 6. ORDER HISTORY
-          // ===============================
+          const SizedBox(height: 28),
+
+          // ──── ORDER HISTORY ────
           _buildOrderHistorySection(s, isDark, theme, purchasesAsync),
         ],
       ),
     );
   }
 
-  Widget _buildProfileHeader(
-      Supplier s, bool isDark, ThemeData theme, Color accent, bool hasDebt) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Large avatar
-        Container(
-          width: 72,
-          height: 72,
-          decoration: BoxDecoration(
-            color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.grey.shade100,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            s.name.substring(0, s.name.length > 1 ? 2 : 1).toUpperCase(),
-            style: TextStyle(
-                fontWeight: FontWeight.w800,
-                color: isDark ? Colors.white70 : Colors.black87,
-                fontSize: 26),
-          ),
-        ),
-        const SizedBox(width: 20),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                s.name.toUpperCase(),
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -0.5,
-                  color: isDark ? Colors.white : Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                children: [
-                  // Status badge
-                  _buildStatusBadge(
-                    label: hasDebt ? "SOLDE DÛ" : "SITUATION À JOUR",
-                    icon: hasDebt
-                        ? FluentIcons.warning_16_regular
-                        : FluentIcons.checkmark_circle_16_regular,
-                    color: hasDebt
-                        ? AppTheme.errorClr
-                        : const Color(0xFF10B981),
-                    isDark: isDark,
-                  ),
-                  // Contact name badge
-                  if (s.contactName != null && s.contactName!.isNotEmpty)
-                    _buildStatusBadge(
-                      label: s.contactName!,
-                      icon: FluentIcons.person_16_regular,
-                      color: Colors.grey,
-                      isDark: isDark,
-                    ),
-                  // Phone badge
-                  if (s.phone != null && s.phone!.isNotEmpty)
-                    _buildStatusBadge(
-                      label: s.phone!,
-                      icon: FluentIcons.phone_16_regular,
-                      color: Colors.blue,
-                      isDark: isDark,
-                    ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        // More menu
-        PopupMenuButton<String>(
-          icon: Container(
+  Widget _buildGridInfoRow(
+    String label,
+    String value,
+    IconData icon,
+    bool isDark,
+    ThemeData theme, {
+    Widget? trailing,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.04)
-                  : Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(10),
+              color: theme.colorScheme.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(FluentIcons.more_vertical_24_regular,
-                color: Colors.grey, size: 18),
+            child: Icon(icon, size: 16, color: theme.colorScheme.primary),
           ),
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16)),
-          color: isDark ? const Color(0xFF0F0F14) : Colors.white,
-          onSelected: (val) {
-            if (val == 'edit') {
-              showDialog(
-                  context: context,
-                  builder: (_) => SupplierFormDialog(supplier: s));
-            }
-            if (val == 'delete') _confirmSupplierDelete(context, ref, s);
-            if (val == 'purchase') {
-              Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (context) => PurchaseScreen(supplier: s)));
-            }
-          },
-          itemBuilder: (ctx) => [
-            PopupMenuItem(
-              value: 'edit',
-              child: Row(children: [
-                Icon(FluentIcons.edit_20_regular,
-                    size: 16,
-                    color: isDark ? Colors.white70 : Colors.black54),
-                const SizedBox(width: 12),
-                const Text("Modifier le profil",
-                    style: TextStyle(fontSize: 13)),
-              ]),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label.toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade500,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+              ],
             ),
-            PopupMenuItem(
-              value: 'purchase',
-              child: Row(children: [
-                Icon(FluentIcons.cart_20_regular,
-                    size: 16, color: accent),
-                const SizedBox(width: 12),
-                Text("Nouvel achat",
-                    style: TextStyle(fontSize: 13, color: accent)),
-              ]),
-            ),
-            if (ref.read(authServiceProvider).value?.isAdmin ==
-                true) ...[
-              const PopupMenuDivider(),
-              const PopupMenuItem(
-                value: 'delete',
-                child: Row(children: [
-                  Icon(FluentIcons.delete_20_regular,
-                      size: 16, color: Colors.red),
-                  SizedBox(width: 12),
-                  Text("Supprimer",
-                      style:
-                          TextStyle(color: Colors.red, fontSize: 13)),
-                ]),
-              ),
-            ],
-          ],
+          ),
+          if (trailing != null) trailing,
+        ],
+      ),
+    );
+  }
+
+
+  Widget _buildSupplierMoreMenu(Supplier s, bool isDark, Color accent) {
+    return PopupMenuButton<String>(
+      icon: const Icon(FluentIcons.more_vertical_20_regular, color: Colors.grey, size: 20),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: isDark ? const Color(0xFF0F0F14) : Colors.white,
+      onSelected: (val) {
+        if (val == 'edit') {
+          showDialog(
+              context: context,
+              builder: (_) => SupplierFormDialog(supplier: s));
+        }
+        if (val == 'delete') _confirmSupplierDelete(context, ref, s);
+        if (val == 'purchase') {
+          Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (context) => PurchaseScreen(supplier: s)));
+        }
+      },
+      itemBuilder: (ctx) => [
+        PopupMenuItem(
+          value: 'edit',
+          child: Row(children: [
+            Icon(FluentIcons.edit_20_regular,
+                size: 16, color: isDark ? Colors.white70 : Colors.black54),
+            const SizedBox(width: 12),
+            const Text("Modifier le profil", style: TextStyle(fontSize: 13)),
+          ]),
         ),
+        PopupMenuItem(
+          value: 'purchase',
+          child: Row(children: [
+            Icon(FluentIcons.cart_20_regular, size: 16, color: accent),
+            const SizedBox(width: 12),
+            Text("Nouvel achat", style: TextStyle(fontSize: 13, color: accent)),
+          ]),
+        ),
+        if (ref.read(authServiceProvider).value?.isAdmin == true) ...[
+          const PopupMenuDivider(),
+          const PopupMenuItem(
+            value: 'delete',
+            child: Row(children: [
+              Icon(FluentIcons.delete_20_regular, size: 16, color: Colors.red),
+              SizedBox(width: 12),
+              Text("Supprimer", style: TextStyle(color: Colors.red, fontSize: 13)),
+            ]),
+          ),
+        ],
       ],
     );
   }
@@ -1133,15 +1078,14 @@ class _SuppliersScreenState extends ConsumerState<SuppliersScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 12, color: color),
-          const SizedBox(width: 5),
+          const SizedBox(width: 6),
           Text(
             label,
             style: TextStyle(
@@ -1155,113 +1099,21 @@ class _SuppliersScreenState extends ConsumerState<SuppliersScreen>
     );
   }
 
-  Widget _buildContactActionsBar(
-      Supplier s, bool isDark, ThemeData theme, Color accent) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14),
-      decoration: const BoxDecoration(
-        color: Colors.transparent,
-      ),
-      child: Row(
-        children: [
-          Text("ACTIONS RAPIDES",
-              style: TextStyle(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1,
-                  color: Colors.grey.shade500)),
-          const SizedBox(width: 14),
-          if (s.phone != null && s.phone!.isNotEmpty) ...[
-            _buildLabeledContactBtn(
-              icon: FluentIcons.call_20_filled,
-              label: "Appeler",
-              color: const Color(0xFF3B82F6),
-              onTap: () => _launchCall(s.phone!),
-              isDark: isDark,
-            ),
-            const SizedBox(width: 8),
-            _buildLabeledContactBtn(
-              icon: FluentIcons.chat_20_filled,
-              label: "WhatsApp",
-              color: const Color(0xFF25D366),
-              onTap: () =>
-                  _launchWhatsApp(s.phone!, s.name, s.outstandingDebt),
-              isDark: isDark,
-            ),
-            const SizedBox(width: 8),
-          ],
-          if (s.email != null && s.email!.isNotEmpty) ...[
-            _buildLabeledContactBtn(
-              icon: FluentIcons.mail_20_filled,
-              label: "Email",
-              color: const Color(0xFF6366F1),
-              onTap: () => _launchEmail(s.email!, s.name),
-              isDark: isDark,
-            ),
-            const SizedBox(width: 8),
-          ],
-          if (s.address != null && s.address!.isNotEmpty)
-            _buildLabeledContactBtn(
-              icon: FluentIcons.location_20_filled,
-              label: "Maps",
-              color: const Color(0xFFF97316),
-              onTap: () => _launchMaps(s.address!),
-              isDark: isDark,
-            ),
-          const Spacer(),
-          FilledButton.icon(
-            onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => PurchaseScreen(supplier: s))),
-            icon: const Icon(FluentIcons.cart_20_regular, size: 16),
-            label: const Text("NOUVEL ACHAT",
-                style:
-                    TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-            style: FilledButton.styleFrom(
-              backgroundColor: accent,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 18, vertical: 14),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildLabeledContactBtn({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-    required bool isDark,
-  }) {
+  Widget _buildActionBtn(IconData icon, String tooltip, VoidCallback onTap, bool isDark) {
     return Tooltip(
-      message: label,
+      message: tooltip,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(30),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: color.withValues(alpha: 0.15)),
+            shape: BoxShape.circle,
+            color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade100,
+            border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.grey.shade300),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 15, color: color),
-              const SizedBox(width: 6),
-              Text(label,
-                  style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: color)),
-            ],
-          ),
+          child: Icon(icon, size: 18, color: isDark ? Colors.white70 : Colors.black87),
         ),
       ),
     );
@@ -1270,153 +1122,49 @@ class _SuppliersScreenState extends ConsumerState<SuppliersScreen>
   Widget _buildFinancialKPIs(
       Supplier s, bool isDark, ThemeData theme, Color accent, bool hasDebt) {
     final paidRatio = s.totalPurchases > 0
-        ? ((s.totalPurchases - s.outstandingDebt) / s.totalPurchases)
-            .clamp(0.0, 1.0)
+        ? ((s.totalPurchases - s.outstandingDebt) / s.totalPurchases).clamp(0.0, 1.0)
         : 1.0;
 
-    return Row(
-      children: [
-        // Total purchases card
-        Expanded(
-          child: _buildKPICard(
-            isDark: isDark,
-            label: "ACHATS TOTAUX",
-            value: ref.fmt(s.totalPurchases),
-            icon: FluentIcons.arrow_trending_24_regular,
-            color: const Color(0xFF10B981),
-            subtitle: "Valeur cumulée d'approvisionnement",
-            progressValue: 1.0,
-            progressColor: const Color(0xFF10B981),
-          ),
-        ),
-        const SizedBox(width: 14),
-        // Debt card
-        Expanded(
-          child: _buildKPICard(
-            isDark: isDark,
-            label: "DETTE EXPLOITATION",
-            value: ref.fmt(s.outstandingDebt),
-            icon: FluentIcons.money_hand_24_regular,
-            color: hasDebt ? AppTheme.errorClr : Colors.grey.shade400,
-            subtitle: hasDebt
-                ? "Cliquez pour régler la dette"
-                : "Aucun solde débiteur en cours",
-            onTap: hasDebt ? () => _showPayDebtDialog(context, s) : null,
-            progressValue: 1.0 - paidRatio,
-            progressColor: hasDebt ? AppTheme.errorClr : Colors.grey,
-          ),
-        ),
-        const SizedBox(width: 14),
-        // Payment ratio card
-        Expanded(
-          child: _buildKPICard(
-            isDark: isDark,
-            label: "TAUX DE PAIEMENT",
-            value: "${(paidRatio * 100).toStringAsFixed(0)}%",
-            icon: FluentIcons.checkmark_circle_24_regular,
-            color: paidRatio > 0.8
-                ? const Color(0xFF10B981)
-                : (paidRatio > 0.5
-                    ? AppTheme.warningClr
-                    : AppTheme.errorClr),
-            subtitle: paidRatio > 0.8
-                ? "Excellent partenaire"
-                : (paidRatio > 0.5
-                    ? "Suivi recommandé"
-                    : "Attention requise"),
-            progressValue: paidRatio,
-            progressColor: paidRatio > 0.8
-                ? const Color(0xFF10B981)
-                : (paidRatio > 0.5
-                    ? AppTheme.warningClr
-                    : AppTheme.errorClr),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildKPICard({
-    required bool isDark,
-    required String label,
-    required String value,
-    required IconData icon,
-    required Color color,
-    required String subtitle,
-    required double progressValue,
-    required Color progressColor,
-    VoidCallback? onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isDark ? Colors.white.withValues(alpha: 0.02) : Colors.grey.shade50,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.04) : Colors.black.withValues(alpha: 0.05)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.grey.shade200),
+      ),
+      child: IntrinsicHeight(
+        child: Row(
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(label,
-                    style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.grey.shade500,
-                        letterSpacing: 0.8)),
-                Icon(icon, color: color, size: 18),
-              ],
+            Expanded(
+              child: _buildCompactKPI("ACHATS TOTAUX", ref.fmt(s.totalPurchases), isDark, null),
             ),
-            const SizedBox(height: 10),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(value,
-                  style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      color: color)),
+            VerticalDivider(color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.grey.shade300, width: 32),
+            Expanded(
+              child: _buildCompactKPI("DETTE EXPLOIT.", ref.fmt(s.outstandingDebt), isDark, hasDebt ? AppTheme.errorClr : null),
             ),
-            const SizedBox(height: 8),
-            // Progress bar
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: progressValue,
-                backgroundColor: isDark
-                    ? Colors.white.withValues(alpha: 0.05)
-                    : Colors.grey.shade200,
-                valueColor: AlwaysStoppedAnimation(progressColor),
-                minHeight: 3,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Flexible(
-                  child: Text(subtitle,
-                      style: TextStyle(
-                          fontSize: 10,
-                          color: Colors.grey.shade500,
-                          fontWeight: FontWeight.w500),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
-                ),
-                if (onTap != null) ...[
-                  const SizedBox(width: 4),
-                  Icon(FluentIcons.arrow_right_12_filled,
-                      color: color, size: 10),
-                ],
-              ],
+            VerticalDivider(color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.grey.shade300, width: 32),
+            Expanded(
+              child: _buildCompactKPI("TAUX PAIEMENT", "${(paidRatio * 100).toStringAsFixed(0)}%", isDark, paidRatio > 0.8 ? const Color(0xFF10B981) : AppTheme.warningClr),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildCompactKPI(String label, String value, bool isDark, Color? color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(label, style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+        const SizedBox(height: 6),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: color ?? (isDark ? Colors.white : Colors.black87))),
+        ),
+      ],
     );
   }
 
@@ -1584,128 +1332,6 @@ class _SuppliersScreenState extends ConsumerState<SuppliersScreen>
     );
   }
 
-  Widget _buildTechnicalInfoSection(
-      Supplier s, bool isDark, ThemeData theme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(FluentIcons.info_24_regular,
-                size: 14, color: Colors.grey.shade500),
-            const SizedBox(width: 8),
-            Text("INFORMATIONS DU PARTENAIRE",
-                style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.2,
-                    color: Colors.grey.shade500)),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.02)
-                : const Color(0xFFF9FAFB),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.05)
-                    : Colors.grey.shade200),
-          ),
-          child: Column(
-            children: [
-              _buildInfoRow(
-                icon: FluentIcons.phone_20_regular,
-                label: "Téléphone",
-                value: s.phone ?? "Non renseigné",
-                isDark: isDark,
-                isSet: s.phone != null && s.phone!.isNotEmpty,
-              ),
-              _buildDivider(isDark),
-              _buildInfoRow(
-                icon: FluentIcons.mail_20_regular,
-                label: "Email",
-                value: s.email ?? "Non renseigné",
-                isDark: isDark,
-                isSet: s.email != null && s.email!.isNotEmpty,
-              ),
-              _buildDivider(isDark),
-              _buildInfoRow(
-                icon: FluentIcons.location_20_regular,
-                label: "Adresse",
-                value: s.address ?? "Non renseigné",
-                isDark: isDark,
-                isSet: s.address != null && s.address!.isNotEmpty,
-              ),
-              _buildDivider(isDark),
-              _buildInfoRow(
-                icon: FluentIcons.person_20_regular,
-                label: "Contact Principal",
-                value: s.contactName ?? "Non renseigné",
-                isDark: isDark,
-                isSet:
-                    s.contactName != null && s.contactName!.isNotEmpty,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInfoRow({
-    required IconData icon,
-    required String label,
-    required String value,
-    required bool isDark,
-    required bool isSet,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.04)
-                : Colors.grey.shade100,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(icon, size: 16, color: Colors.grey.shade400),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label.toUpperCase(),
-                  style: TextStyle(
-                      fontSize: 8,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.grey.shade500,
-                      letterSpacing: 0.5)),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                  color: isSet
-                      ? (isDark ? Colors.white : Colors.black87)
-                      : Colors.grey.shade400,
-                  fontStyle: isSet ? FontStyle.normal : FontStyle.italic,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildDivider(bool isDark) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
@@ -1720,110 +1346,84 @@ class _SuppliersScreenState extends ConsumerState<SuppliersScreen>
 
   Widget _buildOrderHistorySection(Supplier s, bool isDark, ThemeData theme,
       AsyncValue<List<PurchaseOrder>> purchasesAsync) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(FluentIcons.history_24_regular,
-                size: 14, color: Colors.grey.shade500),
-            const SizedBox(width: 8),
-            Text("HISTORIQUE DES COMMANDES",
-                style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.2,
-                    color: Colors.grey.shade500)),
-            const Spacer(),
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
+    return SectionCard(
+      title: "HISTORIQUE DES COMMANDES",
+      subtitle: "Suivi des 5 dernières commandes d'approvisionnement",
+      action: Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.04)
+              : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text("5 dernières",
+            style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey.shade500)),
+      ),
+      child: purchasesAsync.when(
+        loading: () => const Padding(
+            padding: EdgeInsets.all(20),
+            child: Center(child: CircularProgressIndicator())),
+        error: (err, _) => Padding(
+            padding: const EdgeInsets.all(20),
+            child: Center(
+                child:
+                    Text("Erreur historique : $err"))),
+        data: (orders) {
+          final filteredOrders = orders
+              .where((o) => o.supplierId == s.id)
+              .take(5)
+              .toList();
+          if (filteredOrders.isEmpty) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(FluentIcons.receipt_24_regular,
+                        size: 40,
+                        color: Colors.grey.shade400),
+                    const SizedBox(height: 12),
+                    Text(
+                        "Aucun achat enregistré",
+                        style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey.shade600,
+                            fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 6),
+                    Text(
+                        "Les commandes d'approvisionnement pour ce fournisseur s'afficheront ici.",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade500)),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          return ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: filteredOrders.length,
+            separatorBuilder: (_, __) => Divider(
+                height: 1,
                 color: isDark
                     ? Colors.white.withValues(alpha: 0.04)
-                    : Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text("5 dernières",
-                  style: TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.grey.shade500)),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Container(
-          decoration: BoxDecoration(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.02)
-                : const Color(0xFFF9FAFB),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.05)
                     : Colors.grey.shade200),
-          ),
-          child: purchasesAsync.when(
-            loading: () => const Padding(
-                padding: EdgeInsets.all(20),
-                child: Center(child: CircularProgressIndicator())),
-            error: (err, _) => Padding(
-                padding: const EdgeInsets.all(20),
-                child: Center(
-                    child:
-                        Text("Erreur historique : $err"))),
-            data: (orders) {
-              final filteredOrders = orders
-                  .where((o) => o.supplierId == s.id)
-                  .take(5)
-                  .toList();
-              if (filteredOrders.isEmpty) {
-                return Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Center(
-                    child: Column(
-                      children: [
-                        Icon(FluentIcons.box_24_regular,
-                            size: 32,
-                            color: Colors.grey.shade600),
-                        const SizedBox(height: 8),
-                        Text(
-                            "Aucun achat enregistré",
-                            style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey.shade500,
-                                fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 4),
-                        Text(
-                            "Les commandes apparaîtront ici après le premier approvisionnement",
-                            style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.grey.shade600)),
-                      ],
-                    ),
-                  ),
-                );
-              }
-
-              return ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: filteredOrders.length,
-                separatorBuilder: (_, __) => Divider(
-                    height: 1,
-                    color: isDark
-                        ? Colors.white.withValues(alpha: 0.04)
-                        : Colors.grey.shade200),
-                itemBuilder: (ctx, idx) {
-                  final o = filteredOrders[idx];
-                  return _buildOrderRow(o, isDark, theme);
-                },
-              );
+            itemBuilder: (ctx, idx) {
+              final o = filteredOrders[idx];
+              return _buildOrderRow(o, isDark, theme);
             },
-          ),
-        ),
-      ],
+          );
+        },
+      ),
     );
   }
 
@@ -1856,119 +1456,137 @@ class _SuppliersScreenState extends ConsumerState<SuppliersScreen>
         statusIcon = FluentIcons.clock_16_regular;
     }
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(
-        children: [
-          // Status icon
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: statusColor.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(10),
+    return InkWell(
+      onTap: () {
+        showDialog(
+          context: context,
+          builder: (context) => PurchaseDetailDialog(order: o),
+        );
+      },
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: [
+            // Status icon
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: statusColor.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(statusIcon, size: 16, color: statusColor),
             ),
-            child: Icon(statusIcon, size: 16, color: statusColor),
-          ),
-          const SizedBox(width: 14),
-          // Reference + date
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(o.reference,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13)),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(4),
+            const SizedBox(width: 14),
+            // Reference + date
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(o.reference,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13)),
                       ),
-                      child: Text(statusLabel,
-                          style: TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
-                              color: statusColor)),
-                    ),
-                    if (o.paymentMethod != null) ...[
-                      const SizedBox(width: 6),
-                      Text(o.paymentMethod!,
-                          style: TextStyle(
-                              fontSize: 10,
-                              color: Colors.grey.shade500,
-                              fontWeight: FontWeight.w500)),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(statusLabel,
+                            style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                color: statusColor)),
+                      ),
+                      if (o.paymentMethod != null) ...[
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(o.paymentMethod!,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.grey.shade500,
+                                  fontWeight: FontWeight.w500)),
+                        ),
+                      ],
                     ],
-                  ],
-                ),
-                const SizedBox(height: 3),
-                Text(DateFormatter.formatDateTime(o.date),
-                    style: TextStyle(
-                        fontSize: 11, color: Colors.grey.shade500)),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          // Payment progress mini
-          SizedBox(
-            width: 40,
-            child: Column(
-              children: [
-                Text("${(paymentPercent * 100).round()}%",
-                    style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w800,
-                        color: isPaid
-                            ? const Color(0xFF10B981)
-                            : AppTheme.warningClr)),
-                const SizedBox(height: 3),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(2),
-                  child: LinearProgressIndicator(
-                    value: paymentPercent,
-                    backgroundColor: isDark
-                        ? Colors.white.withValues(alpha: 0.06)
-                        : Colors.grey.shade200,
-                    valueColor: AlwaysStoppedAnimation(isPaid
-                        ? const Color(0xFF10B981)
-                        : AppTheme.warningClr),
-                    minHeight: 3,
                   ),
-                ),
+                  const SizedBox(height: 3),
+                  Text(DateFormatter.formatDateTime(o.date),
+                      style: TextStyle(
+                          fontSize: 11, color: Colors.grey.shade500)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Payment progress mini
+            SizedBox(
+              width: 40,
+              child: Column(
+                children: [
+                  Text("${(paymentPercent * 100).round()}%",
+                      style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          color: isPaid
+                              ? const Color(0xFF10B981)
+                              : AppTheme.warningClr)),
+                  const SizedBox(height: 3),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(2),
+                    child: LinearProgressIndicator(
+                      value: paymentPercent,
+                      backgroundColor: isDark
+                          ? Colors.white.withValues(alpha: 0.06)
+                          : Colors.grey.shade200,
+                      valueColor: AlwaysStoppedAnimation(isPaid
+                          ? const Color(0xFF10B981)
+                          : AppTheme.warningClr),
+                      minHeight: 3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 14),
+            // Amount
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(ref.fmt(o.totalAmount),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w900, fontSize: 13)),
+                if (!isPaid)
+                  Text(
+                    "Reste : ${ref.fmt(orderDebt)}",
+                    style: const TextStyle(
+                        fontSize: 10,
+                        color: AppTheme.errorClr,
+                        fontWeight: FontWeight.w700),
+                  )
+                else
+                  const Text(
+                    "Payé",
+                    style: TextStyle(
+                        fontSize: 10,
+                        color: Color(0xFF10B981),
+                        fontWeight: FontWeight.w700),
+                  ),
               ],
             ),
-          ),
-          const SizedBox(width: 14),
-          // Amount
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(ref.fmt(o.totalAmount),
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w900, fontSize: 13)),
-              if (!isPaid)
-                Text(
-                  "Reste : ${ref.fmt(orderDebt)}",
-                  style: const TextStyle(
-                      fontSize: 10,
-                      color: AppTheme.errorClr,
-                      fontWeight: FontWeight.w700),
-                )
-              else
-                const Text(
-                  "Payé",
-                  style: TextStyle(
-                      fontSize: 10,
-                      color: Color(0xFF10B981),
-                      fontWeight: FontWeight.w700),
-                ),
-            ],
-          ),
-        ],
+            const SizedBox(width: 12),
+            Icon(FluentIcons.chevron_right_16_regular,
+                size: 14, color: Colors.grey.shade500),
+          ],
+        ),
       ),
     );
   }
@@ -2147,43 +1765,6 @@ class _SuppliersScreenState extends ConsumerState<SuppliersScreen>
   // DIALOG: MOBILE DETAILS
   // ==========================================
 
-  void _showSupplierDetailsDialog(
-      BuildContext context, Supplier s, bool isDark, ThemeData theme) {
-    showDialog(
-      context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor:
-            isDark ? theme.colorScheme.surface : Colors.white,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24)),
-        insetPadding:
-            const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-        child: Container(
-          width: 550,
-          constraints: const BoxConstraints(maxHeight: 700),
-          clipBehavior: Clip.antiAlias,
-          decoration: const BoxDecoration(),
-          child: Scaffold(
-            backgroundColor: Colors.transparent,
-            appBar: AppBar(
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              centerTitle: true,
-              title: const Text("Fiche Fournisseur",
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 16)),
-              leading: IconButton(
-                icon: const Icon(FluentIcons.dismiss_24_regular),
-                onPressed: () => Navigator.pop(ctx),
-              ),
-            ),
-            body: _buildSupplierDetailsDashboard(
-                s, isDark, theme, theme.colorScheme.primary),
-          ),
-        ),
-      ),
-    );
-  }
 
   // ==========================================
   // ACTIONS
@@ -2464,3 +2045,118 @@ class _SuppliersScreenState extends ConsumerState<SuppliersScreen>
     );
   }
 }
+
+class _PremiumKpiCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final String? sub;
+  final IconData icon;
+  final Color color;
+
+  const _PremiumKpiCard({
+    required this.label,
+    required this.value,
+    this.sub,
+    required this.icon,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? const Color(0xFF2D3039) : const Color(0xFFE5E7EB),
+          width: 1.2,
+        ),
+        boxShadow: isDark
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                )
+              ]
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.02),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                )
+              ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  color.withValues(alpha: 0.15),
+                  color.withValues(alpha: 0.05),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: color.withValues(alpha: 0.25),
+                width: 1,
+              ),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  label.toUpperCase(),
+                  style: TextStyle(
+                    color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.8,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                    color: isDark ? Colors.white : const Color(0xFF1F2937),
+                    letterSpacing: -0.5,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (sub != null) ...[
+                  const SizedBox(height: 1),
+                  Text(
+                    sub!,
+                    style: TextStyle(
+                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+

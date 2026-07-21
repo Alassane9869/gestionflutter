@@ -173,10 +173,13 @@ class GeminiService {
  Tu peux générer et exporter des rapports, ou gérer des devis pour ton patron :
  - [ACTION: EXPORT_REPORT, format: F, period: P] -> Génère et exporte un rapport de performance. F est le format ('pdf' ou 'excel', par défaut 'pdf') et P est la période ('today', 'week', ou 'month', par défaut 'month').
  - [ACTION: CREATE_QUOTE, validity_days: V] -> Crée et enregistre un devis (facture proforma) à partir du panier de caisse en cours. V est le nombre de jours de validité (optionnel, entier, par défaut 30). Le panier sera automatiquement vidé après la création. Note : Dans l'interface utilisateur (visuelle), le patron peut également créer des devis directement depuis l'écran 'devis' en cliquant sur le bouton 'NOUVEAU DEVIS' (le dialogue CreateQuoteDialog propose son propre panier local indépendant pour chercher des produits ou faire une saisie libre personnalisée). Ne l'oblige pas à aller sur la caisse/POS pour le faire.
+ - [ACTION: SAVE_ACTIVE_QUOTE] -> Enregistre/sauvegarde le formulaire de devis qui est actuellement ouvert sur l'écran (s'applique quand l'écran actuel est 'Création Devis' ou 'Modification Devis').
+ - [ACTION: GET_CART_STATUS] -> Lire le contenu et le total du panier de caisse, ou du panier de devis si un formulaire de devis est actuellement ouvert.
  - [ACTION: GET_QUOTES_LIST] -> Récupère et affiche la liste complète des devis enregistrés.
- 
+ - [ACTION: SEND_EMAIL, to: email, subject: sujet, body: texte, template_id: T] -> Envoie de façon silencieuse et automatique un email au destinataire via le service SMTP intégré. Utilise du HTML dans 'body' (<b>, <br>) pour structurer joliment. 'T' est optionnel (classic, modern, elegant, alert, marketing). Par défaut: classic.
+
  === CE QUE TU PEUX FAIRE ET NE PEUX PAS FAIRE (RÉPONDRE DE FAÇON BRÈVE SI DEMANDÉ) ===
- - CE QUE TU PEUX FAIRE : Naviguer dans l'app (caisse, stock, finances, devis, etc.), ajouter/modifier des produits, ajuster des stocks, créer/modifier des clients, enregistrer des dépenses, créer et lister des devis, calculer des chiffres et statistiques de vente, générer et exporter des rapports d'activité, changer le thème visuel, mémoriser des consignes, et effectuer des recherches Google en temps réel pour répondre à des questions d'actualité (météo, taux, prix du marché, etc.).
+ - CE QUE TU PEUX FAIRE : Naviguer dans l'app (caisse, stock, finances, devis, etc.), ajouter/modifier des produits, ajuster des stocks, créer/modifier des clients, envoyer des emails, enregistrer des dépenses, créer et lister des devis, calculer des chiffres et statistiques de vente, générer et exporter des rapports d'activité, changer le thème visuel, mémoriser des consignes, et effectuer des recherches Google en temps réel pour répondre à des questions d'actualité (météo, taux, prix du marché, etc.).
  - CE QUE TU NE PEUX PAS FAIRE : Modifier des droits ou comptes utilisateurs, ou contourner les gardes-fous de sécurité (comme créer un produit de prix > 50 000 000 FCFA ou ajuster du stock de quantité > 100 unités par commande vocale).
  
  === CONNAISSANCE IMPRIMANTES ===
@@ -221,17 +224,17 @@ class GeminiService {
 
     if (isComplex) {
       candidateModels.addAll([
-        'gemini-2.5-flash',        // Modèle principal de l'utilisateur (raisonnement)
-        'gemini-3.5-flash',        // Repli rapide
-        'gemini-3-flash',          // Gemini 3 Flash
-        'gemini-3.1-flash-lite',   // Filet de sécurité (haut quota)
+        'gemini-3.5-flash',
+        'gemini-2.5-flash',
+        'gemini-3.1-flash-lite',
+        'gemini-2.5-flash-lite',
       ]);
     } else {
       candidateModels.addAll([
-        'gemini-3.5-flash',        // Rapide et avec quota disponible
-        'gemini-3-flash',          // Gemini 3 Flash
-        'gemini-3.1-flash-lite',   // Filet de sécurité
-        'gemini-2.5-flash',        // Repli raisonnement
+        'gemini-3.1-flash-lite',
+        'gemini-3.5-flash',
+        'gemini-2.5-flash',
+        'gemini-2.5-flash-lite',
       ]);
     }
 
@@ -245,7 +248,8 @@ class GeminiService {
 
     for (final currentModel in candidateModels) {
       attempt++;
-      final url = Uri.parse('$baseUrl/$currentModel:generateContent?key=$apiKey');
+      // 🔒 Clé API dans le header HTTP (jamais dans l'URL pour éviter les logs réseau)
+      final url = Uri.parse('$baseUrl/$currentModel:generateContent');
 
       // Mapper l'historique au format Gemini (user / model)
       final contents = <Map<String, dynamic>>[];
@@ -273,7 +277,7 @@ class GeminiService {
       });
 
       try {
-        debugPrint('[Gemini] Tentative avec $currentModel (Essai $attempt/${candidateModels.length}) | Contexte: ${businessContext != null ? "✅ Injecté" : "❌ Absent"}');
+        if (kDebugMode) debugPrint('[Gemini] Tentative avec $currentModel (Essai $attempt/${candidateModels.length}) | Contexte: ${businessContext != null ? "✅ Injecté" : "❌ Absent"}');
 
         // google_search (Ancrage) n'est supporté que par Gemini 2.5
         final supportsGrounding = currentModel.contains('2.5');
@@ -298,7 +302,10 @@ class GeminiService {
 
         final response = await http.post(
           url,
-          headers: {'Content-Type': 'application/json'},
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey, // 🔒 Clé dans header, pas dans l'URL
+          },
           body: jsonEncode(requestBody),
         ).timeout(const Duration(seconds: 30));
 
@@ -314,7 +321,7 @@ class GeminiService {
           }
           continue;
         } else {
-          debugPrint('[Gemini Error] Modèle: $currentModel | Code: ${response.statusCode} | Body: ${response.body}');
+          if (kDebugMode) debugPrint('[Gemini Error] Modèle: $currentModel | Code: ${response.statusCode} | Body: ${response.body}');
           
           // Clé API invalide : arrêt immédiat
           if (response.statusCode == 400 && response.body.contains('API key not valid')) {
@@ -327,7 +334,7 @@ class GeminiService {
           continue;
         }
       } catch (e) {
-        debugPrint('[Gemini Exception] Modèle: $currentModel | Exception: $e');
+        if (kDebugMode) debugPrint('[Gemini Exception] Modèle: $currentModel | Exception: $e');
         continue;
       }
     }
@@ -356,14 +363,18 @@ class GeminiService {
     ];
 
     for (final currentModel in candidateModels) {
-      final url = Uri.parse('$baseUrl/$currentModel:generateContent?key=$apiKey');
+      // 🔒 Clé API dans le header, jamais dans l'URL
+      final url = Uri.parse('$baseUrl/$currentModel:generateContent');
       final base64Audio = base64Encode(audioBytes);
 
       try {
-        debugPrint('[Gemini Transcription] Tentative avec $currentModel');
+        if (kDebugMode) debugPrint('[Gemini Transcription] Tentative avec $currentModel');
         final response = await http.post(
           url,
-          headers: {'Content-Type': 'application/json'},
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey, // 🔒 Clé dans header
+          },
           body: jsonEncode({
             'contents': [
               {
@@ -399,13 +410,13 @@ class GeminiService {
             }
           }
         } else {
-          debugPrint('[Gemini Transcription Error] Modèle: $currentModel | Code: ${response.statusCode} | ${response.body}');
+          if (kDebugMode) debugPrint('[Gemini Transcription Error] Modèle: $currentModel | Code: ${response.statusCode} | ${response.body}');
           if (response.statusCode == 429 || response.statusCode >= 500) {
             continue;
           }
         }
       } catch (e) {
-        debugPrint('[Gemini Transcription Exception] Modèle: $currentModel | Exception: $e');
+        if (kDebugMode) debugPrint('[Gemini Transcription Exception] Modèle: $currentModel | Exception: $e');
         continue;
       }
     }
@@ -429,14 +440,18 @@ class GeminiService {
     ];
 
     for (final currentModel in candidateModels) {
-      final url = Uri.parse('$baseUrl/$currentModel:generateContent?key=$apiKey');
+      // 🔒 Clé API dans le header, jamais dans l'URL
+      final url = Uri.parse('$baseUrl/$currentModel:generateContent');
       final base64Image = base64Encode(imageBytes);
 
       try {
-        debugPrint('[Gemini Invoice OCR] Tentative avec $currentModel');
+        if (kDebugMode) debugPrint('[Gemini Invoice OCR] Tentative avec $currentModel');
         final response = await http.post(
           url,
-          headers: {'Content-Type': 'application/json'},
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey, // 🔒 Clé dans header
+          },
           body: jsonEncode({
             'contents': [
               {
@@ -498,10 +513,10 @@ class GeminiService {
             }
           }
         } else {
-          debugPrint('[Gemini Invoice OCR Error] Modèle: $currentModel | Code: ${response.statusCode} | ${response.body}');
+          if (kDebugMode) debugPrint('[Gemini Invoice OCR Error] Modèle: $currentModel | Code: ${response.statusCode} | ${response.body}');
         }
       } catch (e) {
-        debugPrint('[Gemini Invoice OCR Exception] Modèle: $currentModel | Exception: $e');
+        if (kDebugMode) debugPrint('[Gemini Invoice OCR Exception] Modèle: $currentModel | Exception: $e');
       }
     }
     throw Exception("Impossible d'extraire les produits de cette facture. Veuillez vérifier votre connexion et votre clé API.");
@@ -523,13 +538,17 @@ class GeminiService {
     ];
 
     for (final currentModel in candidateModels) {
-      final url = Uri.parse('$baseUrl/$currentModel:generateContent?key=$apiKey');
+      // 🔒 Clé API dans le header, jamais dans l'URL
+      final url = Uri.parse('$baseUrl/$currentModel:generateContent');
 
       try {
-        debugPrint('[Gemini Invoice Text Analysis] Tentative avec $currentModel');
+        if (kDebugMode) debugPrint('[Gemini Invoice Text Analysis] Tentative avec $currentModel');
         final response = await http.post(
           url,
-          headers: {'Content-Type': 'application/json'},
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey, // 🔒 Clé dans header
+          },
           body: jsonEncode({
             'contents': [
               {
@@ -588,12 +607,53 @@ class GeminiService {
             }
           }
         } else {
-          debugPrint('[Gemini Invoice Text Error] Modèle: $currentModel | Code: ${response.statusCode} | ${response.body}');
+          if (kDebugMode) debugPrint('[Gemini Invoice Text Error] Modèle: $currentModel | Code: ${response.statusCode} | ${response.body}');
         }
       } catch (e) {
-        debugPrint('[Gemini Invoice Text Exception] Modèle: $currentModel | Exception: $e');
+        if (kDebugMode) debugPrint('[Gemini Invoice Text Exception] Modèle: $currentModel | Exception: $e');
       }
     }
     throw Exception("Impossible d'analyser le texte de cette facture. Veuillez vérifier votre connexion et votre clé API.");
+  }
+
+  Future<String?> generateLogicalTitle(String userMessage) async {
+    if (apiKey.isEmpty) return null;
+    try {
+      final prompt = "Génère un titre très court (3 à 5 mots maximum) résumant cette demande ou conversation : \"$userMessage\". Ne renvoie que le titre généré, sans ponctuation finale, ni guillemets.";
+      final requestBody = {
+        'contents': [
+          {
+            'parts': [
+              {'text': prompt}
+            ]
+          }
+        ],
+        'generationConfig': {
+          'temperature': 0.7,
+          'maxOutputTokens': 20,
+        },
+      };
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/gemini-3.5-flash:generateContent?key=$apiKey'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(requestBody),
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
+        if (data['candidates'] != null && data['candidates'].isNotEmpty) {
+          final content = data['candidates'][0]['content'];
+          if (content != null && content['parts'] != null && content['parts'].isNotEmpty) {
+            String title = content['parts'][0]['text']?.toString().trim() ?? '';
+            title = title.replaceAll(RegExp(r'^"|"$'), '');
+            return title;
+          }
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) debugPrint('[Gemini Title Error] $e');
+    }
+    return null;
   }
 }

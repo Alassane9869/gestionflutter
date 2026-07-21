@@ -10,6 +10,7 @@ import 'package:danaya_plus/features/auth/providers/user_providers.dart';
 import 'package:danaya_plus/core/widgets/enterprise_widgets.dart';
 import 'package:danaya_plus/features/inventory/presentation/widgets/dashboard_widgets.dart';
 import 'package:danaya_plus/features/finance/providers/treasury_provider.dart';
+import 'package:danaya_plus/core/config/security_config.dart';
 
 class UserFormDialog extends ConsumerStatefulWidget {
   final User? user;
@@ -145,7 +146,7 @@ class _UserFormDialogState extends ConsumerState<UserFormDialog> {
       
       String finalPinHash = widget.user?.pinHash ?? '';
       if (_pinCtrl.text.isNotEmpty) {
-        final bytes = utf8.encode(_pinCtrl.text.trim());
+        final bytes = utf8.encode(_pinCtrl.text.trim() + SecurityConfig.authPepper);
         finalPinHash = sha256.convert(bytes).toString();
       }
 

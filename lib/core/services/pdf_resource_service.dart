@@ -38,7 +38,7 @@ class PdfResourceService {
   pw.Font get italic {
     if (_italic == null) {
       try { _italic = pw.Font.ttf(File('C:/Windows/Fonts/ariali.ttf').readAsBytesSync().buffer.asByteData()); }
-      catch (_) { _italic = pw.Font.helveticaOblique(); }
+      catch (_) { _italic = regular; } // Fallback to regular to keep unicode support
     }
     return _italic!;
   }

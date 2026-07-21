@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ffi';
 import 'package:ffi/ffi.dart';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_tts/flutter_tts.dart';
@@ -31,6 +32,7 @@ import '../../settings/providers/settings_ui_providers.dart';
 import '../../srm/domain/models/supplier.dart';
 import '../../srm/providers/supplier_providers.dart';
 import '../../pos/providers/quote_providers.dart';
+import '../../pos/services/quote_service.dart';
 import '../../inventory/providers/warehouse_providers.dart';
 import '../../finance/providers/session_providers.dart';
 import 'package:danaya_plus/core/theme/theme_provider.dart';
@@ -43,6 +45,8 @@ import 'package:danaya_plus/features/reports/services/excel_export_service.dart'
 import 'package:danaya_plus/core/database/database_service.dart';
 import 'package:danaya_plus/core/utils/date_formatter.dart';
 import 'package:flutter/material.dart' show DateTimeRange, ThemeMode;
+import 'package:danaya_plus/core/services/email_service.dart';
+import 'package:danaya_plus/core/services/email_templates.dart';
 
 class VoiceState {
   final bool isListening;
@@ -222,6 +226,7 @@ class VoiceService extends Notifier<VoiceState> {
     ref.listen(selectedClientIdProvider, (previous, next) {
       _sendSilentContextUpdate();
     });
+
 
     ref.onDispose(() {
       _waveTimer?.cancel();
@@ -623,12 +628,20 @@ ARCHITECTURE DE L'APP (tu connais chaque écran par cœur) :
 OUTILS DISPONIBLES ET LEUR USAGE EXACT :
 
 VENTES & CAISSE :
-  • add_to_cart(name, quantity?) — Ajouter un produit au panier. NOM EXACT du catalogue obligatoire.
+  • add_to_cart(name, quantity?) — Ajouter un produit au panier OU au formulaire de Devis actuellement ouvert. NOM EXACT du catalogue obligatoire.
   • remove_from_cart(name) — Retirer un produit du panier.
   • clear_cart() — Vider entièrement le panier.
-  • select_client(name) — Associer un client à la vente en cours.
+  • get_cart_status() — Lire le contenu et le total du panier de caisse ou du devis actuellement ouvert.
+  • select_client(name) — Associer un client à la vente en cours OU au formulaire de Devis actuellement ouvert.
   • checkout_cart(payment_method, amount_paid?) — Valider la vente. Demande TOUJOURS confirmation du total et du mode de paiement avant.
-  • create_quote() — Créer un devis depuis le panier actuel.
+  • save_active_quote() — Enregistrer/Sauvegarder le formulaire de devis qui est actuellement ouvert sur l'écran.
+  • create_quote() — Créer/Enregistrer un devis en arrière-plan depuis le panier actuel. (Ne l'utilise pas pour interagir avec le formulaire visuel de devis ouvert)
+  • update_quote_status(quote_number, status) — Modifier le statut (PENDING, ACCEPTED, REJECTED).
+  • delete_quote(quote_number) — Supprimer un devis.
+  • convert_quote_to_sale(quote_number) — Convertir un devis en vente et charger en caisse.
+
+COMMUNICATION :
+  • send_email(to, subject, body) — Envoie directement un email en arrière-plan via le service SMTP interne.
 
 PRODUITS & STOCK :
   • search_product(query) — Chercher un produit par nom.
@@ -656,6 +669,7 @@ RAPPORTS & ANALYSES :
 NAVIGATION & INTERFACE :
   • navigate(page, settings_tab?) — Naviguer vers n'importe quel écran.
   • change_theme(mode?, color?) — Changer le thème visuel.
+  • trigger_ui_action(action_type) — Ouvrir un formulaire ou dialogue (new_quote, new_product, new_client, new_supplier, new_expense, transfer_stock). EXEMPLE: Pour créer un devis visuellement, utilise new_quote.
 
 PARAMÈTRES :
   • update_shop_settings(...) — Modifier n'importe quel paramètre boutique.
@@ -1024,6 +1038,10 @@ RÈGLES FINALES :
 
 
 
+  void onAssistantContextChanged() {
+    _sendSilentContextUpdate();
+  }
+
   Future<void> _sendSilentContextUpdate() async {
     if (state.isCallActive && _isLiveMode && _liveService != null) {
       try {
@@ -1058,10 +1076,33 @@ RÈGLES FINALES :
         ? cart.map((item) => "  * ${item.name} x${item.qty} = ${DateFormatter.formatCurrency(item.lineTotal, currency, removeDecimals: removeDecimals)}").join("\n")
         : "  * Panier vide.";
 
+    final assistantState = ref.read(assistantProvider);
+    final currentCtx = assistantState.currentContext;
+    final activeDialog = assistantState.activeDialog;
+
+    final String activeScreenLabel;
+    switch (currentCtx) {
+      case AssistantContext.dashboard: activeScreenLabel = "Tableau de Bord / Dashboard"; break;
+      case AssistantContext.inventory: activeScreenLabel = "Gestion des Produits / Stock / Inventaire"; break;
+      case AssistantContext.pos: activeScreenLabel = "Caisse / Point de Vente (POS)"; break;
+      case AssistantContext.finance: activeScreenLabel = "Gestion Financière / Trésorerie / Dépenses"; break;
+      case AssistantContext.clients: activeScreenLabel = "Gestion Clients"; break;
+      case AssistantContext.suppliers: activeScreenLabel = "Fournisseurs (SRM)"; break;
+      case AssistantContext.settings: activeScreenLabel = "Paramètres de la Boutique"; break;
+      case AssistantContext.reports: activeScreenLabel = "Rapports et Analyses"; break;
+      case AssistantContext.general: activeScreenLabel = "Général / Accueil"; break;
+    }
+
+    final String activeDialogLabel = activeDialog != null
+        ? "Formulaire / Dialogue actuellement ouvert : $activeDialog"
+        : "Aucun formulaire/dialogue ouvert";
+
     return '''[CONTEXT_UPDATE]
-Mise à jour en temps réel du Panier de caisse :
-- Client associé : $selectedClientName
-- Articles dans le panier :
+Mise à jour en temps réel :
+- Écran actuel de l'utilisateur : $activeScreenLabel
+- État des fenêtres/dialogues : $activeDialogLabel
+- Client associé au panier de caisse : $selectedClientName
+- Articles dans le panier de caisse :
 $cartSummary
 - Total du panier : ${DateFormatter.formatCurrency(cartTotal, currency, removeDecimals: removeDecimals)} (${totalItems.toStringAsFixed(0)} articles)''';
   }
@@ -1315,7 +1356,7 @@ $cartSummary
     }
 
     // Minimum threshold check to prevent matching random unrelated products
-    if (bestMatch != null && bestScore >= 0.8) {
+    if (bestMatch != null && bestScore >= 1.5) {
       return bestMatch;
     }
 
@@ -1391,12 +1432,14 @@ $cartSummary
     }
 
     // Minimum threshold check to prevent matching random unrelated clients
-    if (bestMatch != null && bestScore >= 0.8) {
+    if (bestMatch != null && bestScore >= 1.5) {
       return bestMatch;
     }
 
     return null;
   }
+
+
 
   String _getFriendlyToolName(String name, Map<String, dynamic> args) {
     switch (name) {
@@ -2358,6 +2401,35 @@ $cartSummary
             );
           }
         }
+      } else if (name == 'trigger_ui_action') {
+        final actionType = args['action_type'] as String;
+        final assistantNotifier = ref.read(assistantProvider.notifier);
+        if (assistantNotifier.onAction != null) {
+          assistantNotifier.onAction!('ui_action', payload: {
+            'action_type': actionType,
+            ...args,
+          });
+          success = true;
+          responseOutput = {'success': true, 'action_type': actionType};
+          String frenchLabel = '';
+          if (actionType == 'new_quote') {
+            frenchLabel = 'Création Devis';
+          } else if (actionType == 'new_product') {
+            frenchLabel = 'Création Produit';
+          } else if (actionType == 'new_client') {
+            frenchLabel = 'Création Client';
+          } else if (actionType == 'new_supplier') {
+            frenchLabel = 'Création Fournisseur';
+          } else if (actionType == 'transfer_stock') {
+            frenchLabel = 'Transfert de Stock';
+          } else if (actionType == 'new_expense') {
+            frenchLabel = 'Enregistrement Dépense';
+          }
+          
+          assistantNotifier.addAssistantMessage("🖥️ **Action d'interface** : J'ai ouvert le formulaire **$frenchLabel**.");
+        } else {
+          responseOutput = {'success': false, 'error': 'Callback d\'action indisponible.'};
+        }
       } else if (name == 'add_product') {
         if (!hasPermission((u) => u.canManageInventory)) {
           responseOutput = {'success': false, 'error': 'Permission refusée. Impossible de créer un produit.'};
@@ -2372,11 +2444,11 @@ $cartSummary
           );
         } else {
           final prodName = args['name'] as String;
-          final sellingPrice = expandVoiceAmount((args['selling_price'] as num).toDouble());
+          final sellingPrice = expandVoiceAmount(double.tryParse(args['selling_price'].toString()) ?? 0.0);
           final purchasePrice = args['purchase_price'] != null 
-              ? expandVoiceAmount((args['purchase_price'] as num).toDouble()) 
+              ? expandVoiceAmount(double.tryParse(args['purchase_price'].toString()) ?? 0.0) 
               : 0.0;
-          final quantity = (args['quantity'] as num? ?? 0.0).toDouble();
+          final quantity = double.tryParse(args['quantity']?.toString() ?? '0.0') ?? 0.0;
           final category = args['category'] as String?;
 
           if (sellingPrice > 50000000.0) {
@@ -2657,29 +2729,46 @@ $cartSummary
           }
           
           if (matchedClient != null) {
-            ref.read(selectedClientIdProvider.notifier).setClient(matchedClient.id);
-            ref.read(cartProvider.notifier).forceBroadcast();
-            success = true;
-            responseOutput = {
-              'success': true,
-              'client_id': matchedClient.id,
-              'name': matchedClient.name,
-            };
-            
-            ref.read(proactiveAlertProvider.notifier).set(
-              ProactiveAlertData(
-                title: "Client Associé",
-                message: "Le client '${matchedClient.name}' a été lié à la vente.",
-              ),
-            );
-            
-            ref.read(assistantProvider.notifier).addAssistantMessage(
-              "👥 **Client associé** : Le client **${matchedClient.name}** a été lié à la vente en cours."
-            );
-            
             final assistantNotifier = ref.read(assistantProvider.notifier);
-            if (assistantNotifier.onAction != null) {
-              assistantNotifier.onAction!('navigate', payload: 3); // Caisse
+            final activeDialog = assistantNotifier.state.activeDialog;
+            
+            if ((activeDialog == 'Création Devis' || activeDialog == 'Modification Devis') && assistantNotifier.onSelectClientInActiveQuote != null) {
+              assistantNotifier.onSelectClientInActiveQuote!(matchedClient);
+              success = true;
+              responseOutput = {
+                'success': true,
+                'client_id': matchedClient.id,
+                'name': matchedClient.name,
+                'linked_to_quote': true,
+              };
+              
+              ref.read(assistantProvider.notifier).addAssistantMessage(
+                "👥 **Client Devis associé** : Le client **${matchedClient.name}** a été associé au devis en cours."
+              );
+            } else {
+              ref.read(selectedClientIdProvider.notifier).setClient(matchedClient.id);
+              ref.read(cartProvider.notifier).forceBroadcast();
+              success = true;
+              responseOutput = {
+                'success': true,
+                'client_id': matchedClient.id,
+                'name': matchedClient.name,
+              };
+              
+              ref.read(proactiveAlertProvider.notifier).set(
+                ProactiveAlertData(
+                  title: "Client Associé",
+                  message: "Le client '${matchedClient.name}' a été lié à la vente.",
+                ),
+              );
+              
+              ref.read(assistantProvider.notifier).addAssistantMessage(
+                "👥 **Client associé** : Le client **${matchedClient.name}** a été lié à la vente en cours."
+              );
+              
+              if (assistantNotifier.onAction != null) {
+                assistantNotifier.onAction!('navigate', payload: 3); // Caisse
+              }
             }
           } else {
             responseOutput = {'success': false, 'error': 'Client non trouvé.'};
@@ -2733,7 +2822,7 @@ $cartSummary
           );
         } else {
           final prodName = args['product_name'] as String;
-          final qty = (args['quantity'] as num).toDouble();
+          final qty = double.tryParse(args['quantity']?.toString() ?? '1.0') ?? 1.0;
 
           // Guard: Limit stock adjustments to prevent "bêtises"
           if (qty.abs() > 100.0) {
@@ -2817,7 +2906,7 @@ $cartSummary
           );
         } else {
           final prodName = args['product_name'] as String;
-          final qty = (args['quantity'] as num? ?? 1.0).toDouble();
+          final qty = double.tryParse(args['quantity']?.toString() ?? '1.0') ?? 1.0;
           final products = await ref.read(productListProvider.future);
 
           final bestMatch = _findBestProductMatch(products, prodName);
@@ -2838,37 +2927,56 @@ $cartSummary
                 "⚠️ **Stock insuffisant** : Je n'ai pas pu ajouter **${bestMatch.name}** car il n'en reste que **${bestMatch.quantity}** en stock."
               );
             } else {
-              final cartNotifier = ref.read(cartProvider.notifier);
-              cartNotifier.addProduct(bestMatch);
-              if (qty != 1.0) {
-                cartNotifier.updateQty(bestMatch.id, qty);
-              }
-
-              success = true;
-              responseOutput = {
-                'success': true,
-                'product_id': bestMatch.id,
-                'name': bestMatch.name,
-                'quantity_added': qty,
-              };
-
-              ref.read(proactiveAlertProvider.notifier).set(
-                ProactiveAlertData(
-                  title: "Panier Mis à Jour",
-                  message: "${bestMatch.name} (x$qty) ajouté au panier.",
-                ),
-              );
-
-              ref.read(assistantProvider.notifier).addAssistantMessage(
-                "🛒 **Panier de caisse** :\n"
-                "• Ajouté : **${bestMatch.name}**\n"
-                "• Quantité : **$qty**\n"
-                "• Prix unitaire : **${bestMatch.sellingPrice} FCFA**"
-              );
-
               final assistantNotifier = ref.read(assistantProvider.notifier);
-              if (assistantNotifier.onAction != null) {
-                assistantNotifier.onAction!('navigate', payload: 3); // 3 = POS / caisse
+              final activeDialog = assistantNotifier.state.activeDialog;
+              if ((activeDialog == 'Création Devis' || activeDialog == 'Modification Devis') && assistantNotifier.onAddProductToActiveQuote != null) {
+                assistantNotifier.onAddProductToActiveQuote!(bestMatch, qty);
+                success = true;
+                responseOutput = {
+                  'success': true,
+                  'product_id': bestMatch.id,
+                  'name': bestMatch.name,
+                  'quantity_added': qty,
+                  'added_to_quote': true,
+                };
+                ref.read(assistantProvider.notifier).addAssistantMessage(
+                  "📄 **Devis mis à jour** :\n"
+                  "• Ajouté : **${bestMatch.name}**\n"
+                  "• Quantité : **$qty**\n"
+                  "• Prix unitaire : **${bestMatch.sellingPrice} FCFA**"
+                );
+              } else {
+                final cartNotifier = ref.read(cartProvider.notifier);
+                cartNotifier.addProduct(bestMatch);
+                if (qty != 1.0) {
+                  cartNotifier.updateQty(bestMatch.id, qty);
+                }
+
+                success = true;
+                responseOutput = {
+                  'success': true,
+                  'product_id': bestMatch.id,
+                  'name': bestMatch.name,
+                  'quantity_added': qty,
+                };
+
+                ref.read(proactiveAlertProvider.notifier).set(
+                  ProactiveAlertData(
+                    title: "Panier Mis à Jour",
+                    message: "${bestMatch.name} (x$qty) ajouté au panier.",
+                  ),
+                );
+
+                ref.read(assistantProvider.notifier).addAssistantMessage(
+                  "🛒 **Panier de caisse** :\n"
+                  "• Ajouté : **${bestMatch.name}**\n"
+                  "• Quantité : **$qty**\n"
+                  "• Prix unitaire : **${bestMatch.sellingPrice} FCFA**"
+                );
+
+                if (assistantNotifier.onAction != null) {
+                  assistantNotifier.onAction!('navigate', payload: 3); // 3 = POS / caisse
+                }
               }
             }
           } else {
@@ -2887,6 +2995,134 @@ $cartSummary
               "🔍 **Ajout panier échoué** : Produit '$prodName' non trouvé dans l'inventaire."
             );
           }
+        }
+      } else if (name == 'save_active_quote') {
+        final assistantNotifier = ref.read(assistantProvider.notifier);
+        final activeDialog = assistantNotifier.state.activeDialog;
+        if ((activeDialog == 'Création Devis' || activeDialog == 'Modification Devis') && assistantNotifier.onSaveActiveQuote != null) {
+          assistantNotifier.onSaveActiveQuote!();
+          success = true;
+          responseOutput = {
+            'success': true,
+            'message': 'Devis en cours de sauvegarde...',
+          };
+          ref.read(assistantProvider.notifier).addAssistantMessage(
+            "💾 **Sauvegarde du devis** : Le devis actuellement ouvert a été enregistré."
+          );
+        } else {
+          success = false;
+          responseOutput = {
+            'success': false,
+            'error': 'Aucun formulaire de devis n\'est actuellement ouvert.',
+          };
+          ref.read(assistantProvider.notifier).addAssistantMessage(
+            "⚠️ **Erreur** : Je ne peux pas sauvegarder de devis car aucun formulaire de devis n'est ouvert actuellement."
+          );
+        }
+      } else if (name == 'get_cart_status') {
+        final assistantNotifier = ref.read(assistantProvider.notifier);
+        final activeDialog = assistantNotifier.state.activeDialog;
+        
+        if ((activeDialog == 'Création Devis' || activeDialog == 'Modification Devis') && assistantNotifier.onGetActiveQuoteCart != null) {
+          final cartItems = assistantNotifier.onGetActiveQuoteCart!();
+          final total = cartItems.fold(0.0, (sum, item) => sum + (item['total'] as num).toDouble());
+          
+          success = true;
+          responseOutput = {
+            'success': true,
+            'cart_type': 'quote',
+            'items': cartItems,
+            'total': total,
+          };
+          
+          if (cartItems.isEmpty) {
+            ref.read(assistantProvider.notifier).addAssistantMessage(
+              "🛒 **Devis actuel** : Le devis est actuellement vide."
+            );
+          } else {
+            ref.read(assistantProvider.notifier).addAssistantMessage(
+              "🛒 **Devis actuel** :\n"
+              "• Total : **${total.toStringAsFixed(0)} FCFA**\n"
+              "• Articles : **${cartItems.length}**"
+            );
+          }
+        } else {
+          final cartItems = ref.read(cartProvider);
+          final total = cartItems.fold(0.0, (sum, item) => sum + item.lineTotal);
+          
+          final itemsList = cartItems.map((c) => {
+            'name': c.name,
+            'quantity': c.qty,
+            'unit_price': c.unitPrice,
+            'total': c.lineTotal,
+          }).toList();
+          
+          success = true;
+          responseOutput = {
+            'success': true,
+            'cart_type': 'pos',
+            'items': itemsList,
+            'total': total,
+          };
+          
+          if (cartItems.isEmpty) {
+            ref.read(assistantProvider.notifier).addAssistantMessage(
+              "🛒 **Panier de caisse** : Le panier est actuellement vide."
+            );
+          } else {
+            ref.read(assistantProvider.notifier).addAssistantMessage(
+              "🛒 **Panier de caisse** :\n"
+              "• Total : **${total.toStringAsFixed(0)} FCFA**\n"
+              "• Articles : **${cartItems.length}**"
+            );
+          }
+        }
+      } else if (name == 'send_email') {
+        final to = args['to'] as String?;
+        final subject = args['subject'] as String?;
+        final body = args['body'] as String?;
+        final templateId = args['template_id'] as String? ?? 'classic';
+        
+        if (to != null && to.isNotEmpty) {
+          final emailService = ref.read(emailServiceProvider);
+          final shopName = ref.read(shopSettingsProvider).value?.name ?? 'Ma Boutique';
+          
+          final finalHtmlBody = EmailTemplates.buildHtml(
+            templateId,
+            subject: subject ?? 'Message',
+            body: body ?? '',
+            shopName: shopName,
+          );
+
+          final result = await emailService.sendEmail(
+            recipient: to,
+            subject: subject ?? 'Message',
+            body: finalHtmlBody,
+            isHtml: true,
+          );
+
+          if (result.success) {
+            success = true;
+            responseOutput = {
+              'success': true,
+              'message': 'Email expédié via SMTP.',
+            };
+            ref.read(assistantProvider.notifier).addAssistantMessage(
+              "📧 **Email envoyé** : L'email a été expédié avec succès via le système SMTP de l'application !"
+            );
+          } else {
+            success = false;
+            responseOutput = {'success': false, 'error': 'Impossible d\'envoyer l\'email via SMTP: ${result.errorMessage}'};
+            ref.read(assistantProvider.notifier).addAssistantMessage(
+              "⚠️ **Erreur d'envoi** : Impossible d'envoyer l'email. \nMotif : ${result.errorMessage}\nVérifiez que le SMTP est bien configuré dans les paramètres."
+            );
+          }
+        } else {
+          success = false;
+          responseOutput = {'success': false, 'error': 'Adresse email manquante.'};
+          ref.read(assistantProvider.notifier).addAssistantMessage(
+            "⚠️ **Erreur** : L'adresse email du destinataire est manquante."
+          );
         }
       } else if (name == 'update_product') {
         // ── MISE À JOUR PRODUIT (description, prix, catégorie, référence, etc.) ──
@@ -4184,6 +4420,7 @@ $cartSummary
             );
             
             ref.invalidate(quoteListProvider);
+            await ref.read(quoteListProvider.future);
             if (customItems == null) {
               ref.read(cartProvider.notifier).clear();
             }
@@ -4215,6 +4452,7 @@ $cartSummary
           } else {
             await ref.read(quoteRepositoryProvider).deleteQuote(matched['id']);
             ref.invalidate(quoteListProvider);
+            await ref.read(quoteListProvider.future);
             success = true;
             responseOutput = {'success': true, 'quote_id': matched['id']};
             ref.read(assistantProvider.notifier).addAssistantMessage(
@@ -4242,6 +4480,7 @@ $cartSummary
           } else {
             await ref.read(quoteRepositoryProvider).updateQuoteStatus(matched['id'], newStatus);
             ref.invalidate(quoteListProvider);
+            await ref.read(quoteListProvider.future);
             success = true;
             responseOutput = {'success': true, 'quote_id': matched['id'], 'status': newStatus};
             
@@ -4252,6 +4491,78 @@ $cartSummary
                     : 'mis en attente ⏳';
             ref.read(assistantProvider.notifier).addAssistantMessage(
               "📄 **Statut mis à jour** : Le devis **${matched['quote_number']}** est maintenant **$statusStr**."
+            );
+          }
+        }
+      } else if (name == 'update_quote') {
+        if (!hasPermission((u) => u.canSell)) {
+          responseOutput = {'success': false, 'error': 'Permission refusée.'};
+        } else {
+          final qNum = args['quote_number'] as String;
+          final quotes = await ref.read(quoteListProvider.future);
+          Map<String, dynamic>? matched;
+          for (final q in quotes) {
+            if (q['quote_number'].toString().toLowerCase().contains(qNum.toLowerCase())) {
+              matched = q;
+              break;
+            }
+          }
+          if (matched == null) {
+            responseOutput = {'success': false, 'error': 'Devis non trouvé.'};
+          } else {
+            String? newClientId = matched['client_id'];
+            final clientName = args['client_name'] as String?;
+            if (clientName != null && clientName.trim().isNotEmpty) {
+              final clients = await ref.read(clientListProvider.future);
+              for (final c in clients) {
+                if (c.name.toLowerCase().contains(clientName.trim().toLowerCase())) {
+                  newClientId = c.id;
+                  break;
+                }
+              }
+            }
+
+            final newStatus = (args['status'] as String?)?.toUpperCase();
+            if (newStatus != null && newStatus.isNotEmpty) {
+              await ref.read(quoteRepositoryProvider).updateQuoteStatus(matched['id'], newStatus);
+            }
+
+            DateTime? validUntil;
+            if (args['validity_days'] != null) {
+              final days = (args['validity_days'] as num).toInt();
+              validUntil = DateTime.now().add(Duration(days: days));
+            } else if (matched['valid_until'] != null) {
+              validUntil = DateTime.parse(matched['valid_until']);
+            }
+
+            final List<QuoteItem> items = ((matched['items'] as List?) ?? []).map((i) => QuoteItemWithId(
+              name: i['custom_name'] ?? 'Article',
+              qty: (i['quantity'] as num).toDouble(),
+              unitPrice: (i['unit_price'] as num).toDouble(),
+              unit: i['unit'],
+              description: i['description'],
+              discountAmount: (i['discount_amount'] as num? ?? 0).toDouble(),
+              productId: i['product_id'],
+            )).toList();
+
+            final subtotal = (matched['subtotal'] as num).toDouble();
+            final totalAmount = (matched['total_amount'] as num).toDouble();
+
+            await ref.read(quoteRepositoryProvider).updateQuote(
+              quoteId: matched['id'],
+              clientId: newClientId,
+              items: items,
+              subtotal: subtotal,
+              totalAmount: totalAmount,
+              validUntil: validUntil,
+            );
+
+            ref.invalidate(quoteListProvider);
+            await ref.read(quoteListProvider.future);
+            success = true;
+            responseOutput = {'success': true, 'quote_id': matched['id']};
+            ref.read(assistantProvider.notifier).addAssistantMessage(
+              "📄 **Devis mis à jour en temps réel** : Le devis **${matched['quote_number']}** a été modifié."
             );
           }
         }
@@ -4274,6 +4585,7 @@ $cartSummary
             ref.read(cartProvider.notifier).loadFromQuote(matched['items']);
             await ref.read(quoteRepositoryProvider).updateQuoteStatus(matched['id'], 'CONVERTED');
             ref.invalidate(quoteListProvider);
+            await ref.read(quoteListProvider.future);
             
             success = true;
             responseOutput = {'success': true, 'quote_id': matched['id']};

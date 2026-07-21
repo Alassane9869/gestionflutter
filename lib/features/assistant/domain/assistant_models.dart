@@ -144,6 +144,9 @@ class AssistantState {
   final String? currentThreadId;
   final bool isSidebarOpen;
 
+  // Track active dialog form
+  final String? activeDialog;
+
   AssistantState({
     this.messages = const [],
     this.isOpen = false,
@@ -158,6 +161,7 @@ class AssistantState {
     this.threads = const [],
     this.currentThreadId,
     this.isSidebarOpen = false,
+    this.activeDialog,
   }) : currentContext = currentContext ?? AssistantContext.general;
 
   AssistantState copyWith({
@@ -174,6 +178,7 @@ class AssistantState {
     List<ChatThread>? threads,
     String? currentThreadId,
     bool? isSidebarOpen,
+    String? Function()? activeDialog,
   }) {
     return AssistantState(
       messages: messages ?? this.messages,
@@ -189,6 +194,7 @@ class AssistantState {
       threads: threads ?? this.threads,
       currentThreadId: currentThreadId ?? this.currentThreadId,
       isSidebarOpen: isSidebarOpen ?? this.isSidebarOpen,
+      activeDialog: activeDialog != null ? activeDialog() : this.activeDialog,
     );
   }
 }

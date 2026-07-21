@@ -13,9 +13,20 @@ import 'package:danaya_plus/features/finance/providers/session_providers.dart';
 final purchaseActionsProvider = Provider((ref) => PurchaseActions(ref));
 
 final purchaseListProvider = FutureProvider<List<PurchaseOrder>>((ref) async {
-  final db = await ref.read(databaseServiceProvider).database;
-  final List<Map<String, dynamic>> maps = await db.query('purchase_orders', orderBy: 'date DESC');
-  return maps.map((m) => PurchaseOrder.fromMap(m)).toList();
+  try {
+    debugPrint("📂 purchaseListProvider: Starting query...");
+    final db = await ref.read(databaseServiceProvider).database;
+    debugPrint("📂 purchaseListProvider: Database obtained, executing query...");
+    final List<Map<String, dynamic>> maps = await db.query('purchase_orders', orderBy: 'date DESC');
+    debugPrint("📂 purchaseListProvider: Query finished, mapping ${maps.length} orders...");
+    final result = maps.map((m) => PurchaseOrder.fromMap(m)).toList();
+    debugPrint("📂 purchaseListProvider: Mapping finished. Returning ${result.length} orders.");
+    return result;
+  } catch (e, stack) {
+    debugPrint("📂 ERROR in purchaseListProvider: $e");
+    debugPrint(stack.toString());
+    rethrow;
+  }
 });
 
 final purchaseItemsProvider = FutureProvider.family<List<PurchaseOrderItem>, String>((ref, orderId) async {

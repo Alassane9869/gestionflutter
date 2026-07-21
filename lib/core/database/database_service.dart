@@ -19,7 +19,7 @@ final databaseServiceProvider = Provider<DatabaseService>((ref) {
 });
 
 class DatabaseService {
-  static const int targetVersion = 51;
+  static const int targetVersion = 52;
   Database? _db;
 
   Future<Database> get database async {
@@ -302,6 +302,7 @@ class DatabaseService {
         phone TEXT,
         email TEXT,
         address TEXT,
+        logo_path TEXT,
         total_purchases REAL NOT NULL DEFAULT 0.0,
         outstanding_debt REAL NOT NULL DEFAULT 0.0
       )
@@ -655,6 +656,18 @@ class DatabaseService {
         reviewer_note TEXT,
         created_at TEXT,
         FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS hr_templates(
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        category TEXT NOT NULL,
+        content TEXT NOT NULL,
+        is_system INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
       )
     ''');
 

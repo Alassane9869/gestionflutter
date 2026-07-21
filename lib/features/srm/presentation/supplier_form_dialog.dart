@@ -3,13 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:danaya_plus/features/srm/domain/models/supplier.dart';
 import 'package:danaya_plus/features/srm/providers/supplier_providers.dart';
-
+import 'package:danaya_plus/core/widgets/address_autocomplete_field.dart';
 import 'package:danaya_plus/core/widgets/enterprise_widgets.dart';
+import 'package:danaya_plus/features/assistant/application/assistant_service.dart';
 
 class SupplierFormDialog extends ConsumerStatefulWidget {
   final Supplier? supplier;
+  final String? initialName;
+  final String? initialPhone;
 
-  const SupplierFormDialog({super.key, this.supplier});
+  const SupplierFormDialog({super.key, this.supplier, this.initialName, this.initialPhone});
 
   @override
   ConsumerState<SupplierFormDialog> createState() => _SupplierFormDialogState();
@@ -26,11 +29,19 @@ class _SupplierFormDialogState extends ConsumerState<SupplierFormDialog> {
   @override
   void initState() {
     super.initState();
-    _nameCtrl = TextEditingController(text: widget.supplier?.name);
+    _nameCtrl = TextEditingController(text: widget.supplier?.name ?? widget.initialName);
     _contactCtrl = TextEditingController(text: widget.supplier?.contactName);
-    _phoneCtrl = TextEditingController(text: widget.supplier?.phone);
+    _phoneCtrl = TextEditingController(text: widget.supplier?.phone ?? widget.initialPhone);
     _emailCtrl = TextEditingController(text: widget.supplier?.email);
     _addressCtrl = TextEditingController(text: widget.supplier?.address);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(assistantProvider.notifier).setActiveDialog(
+          widget.supplier != null ? 'Modification Fournisseur' : 'Création Fournisseur'
+        );
+      }
+    });
   }
 
   @override
@@ -40,6 +51,9 @@ class _SupplierFormDialogState extends ConsumerState<SupplierFormDialog> {
     _phoneCtrl.dispose();
     _emailCtrl.dispose();
     _addressCtrl.dispose();
+    try {
+      ref.read(assistantProvider.notifier).setActiveDialog(null);
+    } catch (_) {}
     super.dispose();
   }
 
@@ -147,13 +161,10 @@ class _SupplierFormDialogState extends ConsumerState<SupplierFormDialog> {
                 ],
               ),
               const SizedBox(height: 12),
-              EnterpriseWidgets.buildPremiumTextField(
-                context,
-                ctrl: _addressCtrl,
+              AddressAutocompleteField(
+                controller: _addressCtrl,
                 label: "ADRESSE GÉOGRAPHIQUE",
                 hint: "Ex: Bamako, Mali",
-                icon: FluentIcons.location_24_regular,
-                maxLines: useWideLayout ? 1 : 2,
               ),
             ],
           ),

@@ -500,8 +500,36 @@ class InventoryAutomationService {
 
   Future<List<int>?> generateTemplate() async {
     final xlsio.Workbook workbook = xlsio.Workbook();
-    final xlsio.Worksheet sheet = workbook.worksheets[0];
-    sheet.name = 'Modele_Import';
+    
+    // Feuille 1: INSTRUCTIONS
+    final xlsio.Worksheet sheetInstructions = workbook.worksheets[0];
+    sheetInstructions.name = 'Instructions';
+    sheetInstructions.getRangeByName('A1:E1').merge();
+    sheetInstructions.getRangeByName('A1').setText('COMMENT UTILISER CE MODÈLE D\'IMPORTATION ?');
+    sheetInstructions.getRangeByName('A1').cellStyle.bold = true;
+    sheetInstructions.getRangeByName('A1').cellStyle.backColor = '#1E3A8A';
+    sheetInstructions.getRangeByName('A1').cellStyle.fontColor = '#FFFFFF';
+    sheetInstructions.getRangeByName('A1').cellStyle.fontSize = 14;
+    sheetInstructions.getRangeByName('A1').cellStyle.hAlign = xlsio.HAlignType.center;
+    sheetInstructions.getRangeByName('A1').cellStyle.vAlign = xlsio.VAlignType.center;
+    sheetInstructions.getRangeByName('A1').rowHeight = 30;
+
+    final instructions = [
+      '1. Ne modifiez PAS les en-têtes de la feuille "Modèle_Import".',
+      '2. Remplissez les données ligne par ligne dans "Modèle_Import".',
+      '3. La colonne "Nom du Produit" est OBLIGATOIRE.',
+      '4. Si "Est un Service ?" = 1, la quantité ne sera pas suivie en stock.',
+      '5. Les prix et montants doivent être des nombres sans symbole monétaire.',
+    ];
+    for (int i = 0; i < instructions.length; i++) {
+      sheetInstructions.getRangeByIndex(3 + i, 1).setText(instructions[i]);
+      sheetInstructions.getRangeByIndex(3 + i, 1).cellStyle.fontSize = 11;
+      sheetInstructions.getRangeByIndex(3 + i, 1).cellStyle.bold = (i == 2);
+    }
+    sheetInstructions.autoFitColumn(1);
+
+    // Feuille 2: LE MODÈLE
+    final xlsio.Worksheet sheet = workbook.worksheets.addWithName('Modèle_Import');
 
     final headers = [
       'Nom du Produit (Obligatoire)',
@@ -519,10 +547,43 @@ class InventoryAutomationService {
     ];
 
     for (int i = 0; i < headers.length; i++) {
-        sheet.getRangeByIndex(1, i + 1).setText(headers[i]);
-        sheet.getRangeByIndex(1, i + 1).cellStyle.bold = true;
+        final cell = sheet.getRangeByIndex(1, i + 1);
+        cell.setText(headers[i]);
+        cell.cellStyle.bold = true;
+        cell.cellStyle.backColor = '#10B981'; // Green for inventory
+        cell.cellStyle.fontColor = '#FFFFFF';
+        cell.cellStyle.hAlign = xlsio.HAlignType.center;
+        cell.cellStyle.vAlign = xlsio.VAlignType.center;
+        sheet.autoFitColumn(i + 1);
+    }
+    sheet.getRangeByName('A1:L1').rowHeight = 25;
+
+    // Ligne d'exemple
+    final exampleData = [
+      'iPhone 15 Pro Max',
+      'Smartphones',
+      'REF-IP15PM',
+      '1234567890123',
+      'Pièce',
+      '650000',
+      '800000',
+      '10',
+      '2',
+      '0',
+      'Dernier modèle haut de gamme',
+      'Entrepôt Principal'
+    ];
+    
+    for (int i = 0; i < exampleData.length; i++) {
+        final cell = sheet.getRangeByIndex(2, i + 1);
+        cell.setText(exampleData[i]);
+        cell.cellStyle.backColor = '#F3F4F6';
+        cell.cellStyle.fontColor = '#6B7280';
+        cell.cellStyle.italic = true;
     }
 
+    // Tableau généré avec succès
+    
     final List<int> bytes = workbook.saveAsStream();
     workbook.dispose();
     return bytes;

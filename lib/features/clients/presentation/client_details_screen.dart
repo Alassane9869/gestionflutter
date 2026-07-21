@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:danaya_plus/core/theme/app_theme.dart';
 import 'package:danaya_plus/core/extensions/ref_extensions.dart';
 import 'package:danaya_plus/features/pos/providers/sales_history_providers.dart';
 import 'package:danaya_plus/core/utils/date_formatter.dart';
@@ -10,7 +11,6 @@ import 'package:danaya_plus/features/clients/presentation/client_form_dialog.dar
 import 'package:danaya_plus/features/finance/providers/treasury_provider.dart';
 import 'package:danaya_plus/features/clients/providers/client_providers.dart';
 import 'package:danaya_plus/features/clients/domain/models/client.dart';
-import 'package:danaya_plus/features/auth/domain/models/user.dart';
 import 'package:danaya_plus/features/settings/providers/shop_settings_provider.dart';
 import 'package:danaya_plus/features/clients/services/debt_statement_service.dart';
 import 'package:danaya_plus/core/services/email_service.dart';
@@ -20,6 +20,7 @@ import 'package:danaya_plus/core/database/database_service.dart';
 import 'package:danaya_plus/features/clients/providers/client_analytics_providers.dart';
 import 'package:danaya_plus/core/services/whatsapp_service.dart';
 import 'package:danaya_plus/core/widgets/enterprise_widgets.dart';
+import 'package:danaya_plus/core/widgets/map_viewer_dialog.dart';
 
 class ClientDetailScreen extends ConsumerWidget {
   final Client client;
@@ -313,7 +314,12 @@ class ClientDetailScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final accent = theme.colorScheme.primary;
-    final salesAsync = ref.watch(salesHistoryProvider);
+    final salesAsync = ref.watch(clientSalesProvider(client.id));
+    final settings = ref.watch(shopSettingsProvider).value;
+    final loyaltyEnabled = settings?.loyaltyEnabled ?? false;
+    final threshold = settings?.vipThreshold ?? 1000000.0;
+    final bool isVip = client.totalSpent > threshold;
+    final hasDebt = client.credit > 0;
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0F1115) : const Color(0xFFF9FAFB),
@@ -325,7 +331,7 @@ class ClientDetailScreen extends ConsumerWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          "Détail Client",
+          "Fiche Profil Client",
           style: TextStyle(
             color: isDark ? Colors.white : Colors.black87,
             fontWeight: FontWeight.w900,
@@ -341,8 +347,6 @@ class ClientDetailScreen extends ConsumerWidget {
                 builder: (ctx) => ClientFormDialog(client: client),
               );
               if (updated != null && context.mounted) {
-                // Return to previous screen or refresh? 
-                // Since it's a detail screen, it's better to pop and reopen or use a provider for the specific client.
                 Navigator.pop(context);
               }
             },
@@ -352,250 +356,373 @@ class ClientDetailScreen extends ConsumerWidget {
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // --- PROFILE HEADER ---
-            _buildProfileHeader(theme, isDark, accent, ref),
-            const SizedBox(height: 24),
-
-            // --- SCORECARD ---
-            _buildScorecard(context, ref, accent, isDark, user),
-            const SizedBox(height: 32),
-
-            // --- TABS / CONTENT ---
-            Row(
+        child: Center(
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 850),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _buildSectionTitle("HISTORIQUE DES ACHATS", isDark),
-                const Spacer(),
-                const Icon(FluentIcons.filter_20_regular, size: 16, color: Colors.grey),
-              ],
-            ),
-            const SizedBox(height: 16),
-            
-            salesAsync.when(
-              data: (sales) {
-                final clientSales = sales.where((s) => s.sale.clientId == client.id).toList();
-                if (clientSales.isEmpty) return _buildEmptyState(isDark);
-                return ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: clientSales.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (ctx, i) => _buildSaleCard(ctx, clientSales[i], ref, isDark),
-                );
-              },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (err, _) => Center(child: Text("Erreur : $err")),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProfileHeader(ThemeData theme, bool isDark, Color accent, WidgetRef ref) {
-    return Row(
-      children: [
-        Container(
-          width: 64,
-          height: 64,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [accent, accent.withValues(alpha: 0.7)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: accent.withValues(alpha: 0.2),
-                blurRadius: 10,
-                offset: const Offset(0, 5),
-              ),
-            ],
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            client.name.substring(0, 1).toUpperCase(),
-            style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900),
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                client.name,
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: -0.5),
-              ),
-              const SizedBox(height: 2),
-              Row(
-                children: [
-                  Icon(FluentIcons.phone_20_regular, size: 14, color: Colors.grey.shade500),
-                  const SizedBox(width: 4),
-                  Text(client.phone ?? 'Aucun numéro', style: TextStyle(color: Colors.grey.shade500, fontSize: 13, fontWeight: FontWeight.w600)),
-                  if (client.phone != null && client.phone!.isNotEmpty) ...[
-                    const SizedBox(width: 12),
-                    _buildContactAction(FluentIcons.call_20_regular, Colors.green),
-                    const SizedBox(width: 6),
-                    _buildContactAction(FluentIcons.chat_20_regular, Colors.blue),
+                // --- 1. HEADER COMPACT (Avatar + Name + Status Badges) ---
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 90,
+                      height: 90,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [accent, accent.withValues(alpha: 0.7)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: accent.withValues(alpha: 0.2),
+                            blurRadius: 10,
+                            offset: const Offset(0, 5),
+                          ),
+                        ],
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        client.name.substring(0, client.name.length > 1 ? 2 : 1).toUpperCase(),
+                        style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            client.name.toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.5,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 8,
+                            children: [
+                              _buildStatusBadge(
+                                label: hasDebt ? "SOLDE DÛ" : "À JOUR",
+                                icon: hasDebt
+                                    ? FluentIcons.warning_16_regular
+                                    : FluentIcons.checkmark_circle_16_regular,
+                                color: hasDebt ? AppTheme.errorClr : const Color(0xFF10B981),
+                                isDark: isDark,
+                              ),
+                              _buildStatusBadge(
+                                label: isVip ? "CLIENT VIP" : "CLIENT RÉGULIER",
+                                icon: isVip ? FluentIcons.star_16_filled : FluentIcons.person_16_regular,
+                                color: isVip ? Colors.amber.shade700 : Colors.blue,
+                                isDark: isDark,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
+                ),
+
+                const SizedBox(height: 24),
+
+                // --- 2. ACTION BUTTONS ROW ---
+                Row(
+                  children: [
+                    if (client.phone != null && client.phone!.isNotEmpty) ...[
+                      _buildActionBtn(
+                        FluentIcons.call_16_regular,
+                        "Appeler",
+                        () async {
+                          final uri = Uri.parse("tel:${client.phone}");
+                          if (await canLaunchUrl(uri)) await launchUrl(uri);
+                        },
+                        isDark,
+                        theme,
+                      ),
+                      const SizedBox(width: 8),
+                      _buildActionBtn(
+                        FluentIcons.chat_16_regular,
+                        "WhatsApp",
+                        () => _sendWhatsAppReminder(context, ref, client),
+                        isDark,
+                        theme,
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    if (client.email != null && client.email!.isNotEmpty) ...[
+                      _buildActionBtn(
+                        FluentIcons.mail_16_regular,
+                        "Email",
+                        () async {
+                          final uri = Uri.parse("mailto:${client.email}");
+                          if (await canLaunchUrl(uri)) await launchUrl(uri);
+                        },
+                        isDark,
+                        theme,
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                  ],
+                ),
+
+                const SizedBox(height: 24),
+
+                // --- 3. UNIFORM SCORECARD (Style Dashboard) ---
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildUniformKpiCard(
+                        "Achats Totaux",
+                        ref.fmt(client.totalSpent),
+                        FluentIcons.cart_24_regular,
+                        accent,
+                        isDark,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildUniformKpiCard(
+                        "Solde En Cours",
+                        ref.fmt(client.credit),
+                        FluentIcons.money_off_24_regular,
+                        hasDebt ? AppTheme.errorClr : const Color(0xFF10B981),
+                        isDark,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    if (loyaltyEnabled) ...[
+                      Expanded(
+                        child: _buildUniformKpiCard(
+                          "Points Fidélité",
+                          "${client.loyaltyPoints} pts",
+                          FluentIcons.star_24_regular,
+                          Colors.amber.shade700,
+                          isDark,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                    ],
+                    Expanded(
+                      child: _buildUniformKpiCard(
+                        "Visites / Achats",
+                        "${client.totalPurchases} Fois",
+                        FluentIcons.arrow_trending_lines_24_regular,
+                        Colors.blue,
+                        isDark,
+                      ),
+                    ),
+                    if (user.canAccessReports) ...[
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ref.watch(clientProfitProvider(client.id)).when(
+                              data: (profit) => _buildUniformKpiCard(
+                                "Profit Net",
+                                ref.fmt(profit),
+                                FluentIcons.presence_available_24_regular,
+                                const Color(0xFF10B981),
+                                isDark,
+                              ),
+                              loading: () => _buildUniformKpiCard(
+                                "Profit Net",
+                                "...",
+                                FluentIcons.presence_available_24_regular,
+                                Colors.grey,
+                                isDark,
+                              ),
+                              error: (_, __) => const SizedBox.shrink(),
+                            ),
+                      ),
+                    ],
+                  ],
+                ),
+
+                const SizedBox(height: 24),
+
+                // --- 4. DEDICATED DEBT PROGRESS & ACTIONS BANNER ---
+                if (hasDebt) ...[
+                  _buildDebtGaugeBanner(context, ref, isDark, theme, accent),
+                  const SizedBox(height: 24),
                 ],
-              ),
-              const SizedBox(height: 4),
-              if (client.email != null && client.email!.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Row(
+
+                // --- 5. INFORMATIONS COMPLÈTES CARD (Style Grille) ---
+                const Text(
+                  "INFORMATIONS PERSONNELLES & DE LIVRAISON",
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.5,
+                    color: Colors.grey,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.grey.shade200,
+                    ),
+                  ),
+                  child: Column(
                     children: [
-                      Icon(FluentIcons.mail_16_regular, size: 14, color: Colors.grey.shade500),
-                      const SizedBox(width: 6),
-                      Text(client.email!, style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+                      _buildGridInfoRow("Téléphone", client.phone ?? "Non renseigné", FluentIcons.phone_20_regular, isDark, theme),
+                      _buildDivider(isDark),
+                      _buildGridInfoRow("Adresse Email", client.email ?? "Non renseigné", FluentIcons.mail_20_regular, isDark, theme),
+                      _buildDivider(isDark),
+                      _buildGridInfoRow("Plafond de Crédit", "${ref.fmt(client.maxCredit)} Max", FluentIcons.money_hand_20_regular, isDark, theme),
+                      _buildDivider(isDark),
+                      _buildGridInfoRow(
+                        "Adresse de Livraison",
+                        (client.address != null && client.address!.isNotEmpty)
+                            ? client.address!
+                            : "Aucune adresse enregistrée",
+                        FluentIcons.location_20_regular,
+                        isDark,
+                        theme,
+                        trailing: (client.address != null && client.address!.isNotEmpty)
+                            ? OutlinedButton.icon(
+                                onPressed: () {
+                                  final shopAddress = settings?.address ?? 'Dakar, Senegal';
+                                  MapViewerDialog.show(
+                                    context,
+                                    originAddress: shopAddress,
+                                    destinationAddress: client.address!,
+                                    originLabel: settings?.name ?? 'Ma Boutique',
+                                    destinationLabel: client.name,
+                                  );
+                                },
+                                icon: const Icon(FluentIcons.map_16_regular, size: 14),
+                                label: const Text("Carte", style: TextStyle(fontSize: 12)),
+                                style: OutlinedButton.styleFrom(
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                ),
+                              )
+                            : OutlinedButton.icon(
+                                onPressed: () async {
+                                  final updated = await showDialog<Client>(
+                                    context: context,
+                                    builder: (ctx) => ClientFormDialog(client: client),
+                                  );
+                                  if (updated != null && context.mounted) {
+                                    Navigator.pop(context);
+                                  }
+                                },
+                                icon: const Icon(FluentIcons.edit_16_regular, size: 14),
+                                label: const Text("Ajouter", style: TextStyle(fontSize: 12)),
+                                style: OutlinedButton.styleFrom(
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                ),
+                              ),
+                      ),
                     ],
                   ),
                 ),
-              if (client.address != null && client.address!.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    children: [
-                      Icon(FluentIcons.location_16_regular, size: 14, color: Colors.grey.shade500),
-                      const SizedBox(width: 6),
-                      Expanded(child: Text(client.address!, style: TextStyle(color: Colors.grey.shade500, fontSize: 13))),
-                    ],
-                  ),
+
+                const SizedBox(height: 32),
+
+                // --- 6. HISTORIQUE DES ACHATS ---
+                Row(
+                  children: [
+                    _buildSectionTitle("HISTORIQUE DES ACHATS", isDark),
+                    const Spacer(),
+                    Icon(FluentIcons.filter_20_regular, size: 16, color: Colors.grey.shade400),
+                  ],
                 ),
-              _buildRankingBadge(accent, ref),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildContactAction(IconData icon, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        shape: BoxShape.circle,
-      ),
-      child: Icon(icon, color: color, size: 14),
-    );
-  }
-
-  Widget _buildRankingBadge(Color accent, WidgetRef ref) {
-    final settings = ref.watch(shopSettingsProvider).value;
-    final threshold = settings?.vipThreshold ?? 1000000.0;
-    final bool isVip = client.totalSpent > threshold;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: (isVip ? Colors.amber : accent).withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: (isVip ? Colors.amber : accent).withValues(alpha: 0.2)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(isVip ? FluentIcons.star_16_filled : FluentIcons.person_16_regular, color: isVip ? Colors.amber : accent, size: 12),
-          const SizedBox(width: 6),
-          Text(
-            isVip ? "CLIENT VIP" : "CLIENT RÉGULIER",
-            style: TextStyle(color: isVip ? Colors.amber : accent, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 0.5),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildScorecard(BuildContext context, WidgetRef ref, Color accent, bool isDark, User user) {
-    final settings = ref.watch(shopSettingsProvider).value;
-    final loyaltyEnabled = settings?.loyaltyEnabled ?? false;
-    
-    return Row(
-      children: [
-        _buildStatCard("Total Achats", ref.fmt(client.totalSpent), FluentIcons.cart_24_regular, accent, isDark),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            children: [
-              _buildStatCard("Dette Actuelle", ref.fmt(client.credit), FluentIcons.money_off_24_regular, client.credit > 0 ? Colors.red : Colors.green, isDark),
-              if (client.credit > 0) ...[
-                const SizedBox(height: 8),
-                SizedBox(
-                  width: double.infinity,
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => _showSettleDebtDialog(context, ref, accent),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            side: BorderSide(color: Colors.red.withValues(alpha: 0.5)),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          child: const Text("RÉGLER", style: TextStyle(color: Colors.red, fontWeight: FontWeight.w900, fontSize: 11)),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => _sendWhatsAppReminder(context, ref, client),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            side: BorderSide(color: Colors.green.withValues(alpha: 0.5)),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          child: const Icon(FontAwesomeIcons.whatsapp, color: Colors.green, size: 16),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => _sendDebtReminder(context, ref, client),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            side: BorderSide(color: Colors.orange.withValues(alpha: 0.5)),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          child: const Text("RELANCER", style: TextStyle(color: Colors.orange, fontWeight: FontWeight.w900, fontSize: 11)),
-                        ),
-                      ),
-                    ],
-                  ),
+                const SizedBox(height: 16),
+                salesAsync.when(
+                  data: (sales) {
+                    final clientSales = sales.where((s) => s.sale.clientId == client.id).toList();
+                    if (clientSales.isEmpty) return _buildEmptyState(isDark);
+                    return ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: clientSales.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (ctx, i) => _buildSaleCard(ctx, clientSales[i], ref, isDark),
+                    );
+                  },
+                  loading: () => const Center(child: CircularProgressIndicator()),
+                  error: (err, _) => Center(child: Text("Erreur : $err")),
                 ),
               ],
-            ],
+            ),
           ),
         ),
-        const SizedBox(width: 12),
-        if (loyaltyEnabled)
-          _buildStatCard("Points Fidélité", "${client.loyaltyPoints} pts", FluentIcons.star_24_regular, Colors.amber, isDark),
-        if (loyaltyEnabled)
-          const SizedBox(width: 12),
-        _buildStatCard("Fréquence", "${client.totalPurchases} Visites", FluentIcons.arrow_trending_lines_24_regular, Colors.orange, isDark),
-        if (user.canAccessReports) ...[
-          const SizedBox(width: 12),
-          ref.watch(clientProfitProvider(client.id)).when(
-            data: (profit) => _buildStatCard("Profit Net", ref.fmt(profit), FluentIcons.presence_available_24_regular, Colors.green, isDark),
-            loading: () => _buildStatCard("Profit Net", "...", FluentIcons.presence_available_24_regular, Colors.grey, isDark),
-            error: (_, __) => const SizedBox.shrink(),
-          ),
-        ],
-      ],
+      ),
     );
   }
 
-  Widget _buildStatCard(String label, String value, IconData icon, Color color, bool isDark, {Widget? extra}) {
+  Widget _buildUniformKpiCard(String label, String value, IconData icon, Color color, bool isDark) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0D0E12) : Colors.white,
+        color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.grey.shade50,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: color, size: 18),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            label.toUpperCase(),
+            style: TextStyle(color: Colors.grey.shade500, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+          ),
+          const SizedBox(height: 4),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDebtGaugeBanner(BuildContext context, WidgetRef ref, bool isDark, ThemeData theme, Color accent) {
+    final double debtRatio = client.maxCredit > 0
+        ? (client.credit / client.maxCredit).clamp(0.0, 1.0)
+        : 0.0;
+    final int debtPercent = (debtRatio * 100).round();
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppTheme.errorClr.withValues(alpha: 0.04),
+            AppTheme.errorClr.withValues(alpha: 0.01),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.errorClr.withValues(alpha: 0.12)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -603,23 +730,211 @@ class ClientDetailScreen extends ConsumerWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
-                child: Icon(icon, color: color, size: 16),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppTheme.errorClr.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(FluentIcons.warning_20_regular, color: AppTheme.errorClr, size: 18),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "ALERTE DE CRÉDIT",
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.0, color: AppTheme.errorClr),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        "Dépassement de plafond : $debtPercent% utilisé",
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: isDark ? Colors.white70 : Colors.black87),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              if (extra != null) extra,
+              Text(
+                "${ref.fmt(client.credit)} / ${ref.fmt(client.maxCredit)}",
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppTheme.errorClr),
+              ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(label, style: TextStyle(color: Colors.grey.shade500, fontSize: 10, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 2),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 16),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: debtRatio,
+              minHeight: 8,
+              backgroundColor: isDark ? Colors.white12 : Colors.grey.shade200,
+              valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.errorClr),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: () => _showSettleDebtDialog(context, ref, accent),
+                  icon: const Icon(FluentIcons.money_20_regular, size: 14),
+                  label: const Text("RÉGLER LA DETTE", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppTheme.errorClr,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _sendWhatsAppReminder(context, ref, client),
+                  icon: const Icon(FontAwesomeIcons.whatsapp, size: 14, color: Colors.green),
+                  label: const Text("RAPPEL WHATSAPP", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.green)),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: Colors.green.withValues(alpha: 0.5)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _sendDebtReminder(context, ref, client),
+                  icon: const Icon(FluentIcons.mail_alert_20_regular, size: 14, color: Colors.orange),
+                  label: const Text("RAPPEL EMAIL", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.orange)),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: Colors.orange.withValues(alpha: 0.5)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildStatusBadge({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required bool isDark,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 12),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              color: color,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionBtn(
+    IconData icon,
+    String tooltip,
+    VoidCallback onTap,
+    bool isDark,
+    ThemeData theme,
+  ) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(30),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade100,
+            border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.grey.shade300),
+          ),
+          child: Icon(icon, size: 18, color: isDark ? Colors.white70 : Colors.black87),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGridInfoRow(
+    String label,
+    String value,
+    IconData icon,
+    bool isDark,
+    ThemeData theme, {
+    Widget? trailing,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 16, color: theme.colorScheme.primary),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label.toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade500,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (trailing != null) trailing,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDivider(bool isDark) {
+    return Divider(
+      height: 24,
+      color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.grey.shade200,
     );
   }
 

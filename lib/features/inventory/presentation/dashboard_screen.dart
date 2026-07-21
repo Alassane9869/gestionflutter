@@ -22,6 +22,11 @@ import 'package:danaya_plus/features/pos/providers/sales_history_providers.dart'
 import 'package:danaya_plus/features/pos/presentation/return_sale_dialog.dart';
 import 'package:danaya_plus/features/clients/domain/models/client.dart';
 import 'package:danaya_plus/features/pos/presentation/quotes_screen.dart';
+import 'package:danaya_plus/features/pos/presentation/widgets/create_quote_dialog.dart';
+import 'package:danaya_plus/features/inventory/presentation/product_form_dialog.dart';
+import 'package:danaya_plus/features/clients/presentation/client_form_dialog.dart';
+import 'package:danaya_plus/features/srm/presentation/supplier_form_dialog.dart';
+import 'package:danaya_plus/features/inventory/presentation/transfer_stock_dialog.dart';
 import 'package:danaya_plus/features/reports/presentation/reports_screen.dart';
 import 'package:danaya_plus/features/settings/providers/shop_settings_provider.dart';
 import 'package:danaya_plus/features/finance/providers/session_providers.dart';
@@ -138,9 +143,82 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           _handleSendClientMessage(payload);
         } else if (action == "manage_sale" && payload is Map) {
           _handleManageSale(payload);
+        } else if (action == "ui_action") {
+          _handleUiAction(payload);
         }
       });
     });
+  }
+
+  void _handleUiAction(dynamic payload) {
+    if (!mounted) return;
+    
+    // Fermer le panneau de l'assistant pour libérer l'affichage de la boîte de dialogue
+    ref.read(assistantProvider.notifier).closePanel();
+
+    String actionType = '';
+    Map<String, dynamic> params = {};
+    if (payload is String) {
+      actionType = payload;
+    } else if (payload is Map) {
+      params = Map<String, dynamic>.from(payload);
+      actionType = params['action_type']?.toString() ?? '';
+    }
+
+    if (actionType.isEmpty) return;
+
+    if (actionType == 'new_quote') {
+      showDialog(
+        context: context,
+        builder: (_) => CreateQuoteDialog(
+          initialClientName: params['client_name']?.toString(),
+        ),
+      );
+    } else if (actionType == 'new_product') {
+      final amt = params['amount'] != null ? (params['amount'] as num).toDouble() : null;
+      final purchaseAmt = params['purchase_price'] != null ? (params['purchase_price'] as num).toDouble() : null;
+      final qty = params['quantity'] != null ? (params['quantity'] as num).toDouble() : null;
+      showDialog(
+        context: context,
+        builder: (_) => ProductFormDialog(
+          initialName: params['product_name']?.toString(),
+          initialSellingPrice: amt,
+          initialPurchasePrice: purchaseAmt,
+          initialQuantity: qty,
+          initialCategory: params['category']?.toString(),
+        ),
+      );
+    } else if (actionType == 'new_client') {
+      showDialog(
+        context: context,
+        builder: (_) => ClientFormDialog(
+          initialName: params['client_name']?.toString(),
+          initialPhone: params['phone']?.toString(),
+        ),
+      );
+    } else if (actionType == 'new_supplier') {
+      showDialog(
+        context: context,
+        builder: (_) => SupplierFormDialog(
+          initialName: params['client_name']?.toString(),
+          initialPhone: params['phone']?.toString(),
+        ),
+      );
+    } else if (actionType == 'transfer_stock') {
+      showDialog(
+        context: context,
+        builder: (_) => const TransferStockDialog(),
+      );
+    } else if (actionType == 'new_expense') {
+      final amt = params['amount'] != null ? (params['amount'] as num).toDouble() : null;
+      ExpensesScreen.showAddExpenseDialog(
+        context,
+        ref,
+        initialAmount: amt,
+        initialCategory: params['category']?.toString(),
+        initialDescription: params['description']?.toString(),
+      );
+    }
   }
 
   Future<void> _handleSendClientMessage(Map payload) async {
@@ -774,6 +852,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ref.read(cartProvider.notifier).clear();
         ref.read(selectedClientIdProvider.notifier).setClient(null);
 
+        // ── Rafraîchissement complet de tous les providers après vente IA ──
+        ref.invalidate(salesHistoryProvider);
+        ref.invalidate(clientListProvider);
+        ref.invalidate(productListProvider);
+        ref.invalidate(treasuryProvider);
+
         if (mounted) {
           if (documentType != null) {
             showDialog(
@@ -841,72 +925,105 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     ref.read(authServiceProvider.notifier).logout();
   }
 
+  // ── PERFORMANCE: Lazy page cache ──
+  // Pages are built on FIRST visit only, then kept alive in this cache.
+  // Switching back to a previously visited page is INSTANT (no rebuild).
+  final Map<int, Widget> _pageCache = {};
+
   Widget _buildBody(int index) {
     final user = ref.watch(authServiceProvider).value;
     if (user == null) return const SizedBox.shrink();
 
+    // Return cached page if it exists (instant switch)
+    if (_pageCache.containsKey(index)) {
+      return _pageCache[index]!;
+    }
+
+    // Build the page for the first time, wrap in RepaintBoundary for GPU isolation
+    Widget page;
     switch (index) {
       case 0:
-        if (!user.canViewDashboard) return _denied("Tableau de Bord");
-        if (user.isCashier) {
-          return const CashierDashboardContent();
-        }
-        return const DashboardContent();
+        if (!user.canViewDashboard) { page = _denied("Tableau de Bord"); break; }
+        page = user.isCashier ? const CashierDashboardContent() : const DashboardContent();
+        break;
       case 1:
-        if (!user.canManageInventory) return _denied("Inventaire");
-        return const ProductListScreen();
+        if (!user.canManageInventory) { page = _denied("Inventaire"); break; }
+        page = const ProductListScreen();
+        break;
       case 2:
-        if (!user.canManageInventory) return _denied("Mouvements");
-        return const StockMovementScreen();
+        if (!user.canManageInventory) { page = _denied("Mouvements"); break; }
+        page = const StockMovementScreen();
+        break;
       case 3:
-        if (!user.canSell) return _denied("Point de Vente");
-        return const PosScreen();
+        if (!user.canSell) { page = _denied("Point de Vente"); break; }
+        page = const PosScreen();
+        break;
       case 4:
-        if (!user.canSell) return _denied("Historique");
-        return const SalesHistoryScreen();
+        if (!user.canSell) { page = _denied("Historique"); break; }
+        page = const SalesHistoryScreen();
+        break;
       case 5:
-        if (!user.canViewReports) return _denied("Rapports");
-        return const ReportsScreen();
+        if (!user.canViewReports) { page = _denied("Rapports"); break; }
+        page = const ReportsScreen();
+        break;
       case 6:
-        if (!user.canAccessFinance) return _denied("Trésorerie");
-        return const FinanceScreen();
+        if (!user.canAccessFinance) { page = _denied("Trésorerie"); break; }
+        page = const FinanceScreen();
+        break;
       case 7:
-        if (!user.canManageCustomers) return _denied("Clients");
-        return const ClientsScreen();
+        if (!user.canManageCustomers) { page = _denied("Clients"); break; }
+        page = const ClientsScreen();
+        break;
       case 8:
-        if (!user.canManageSuppliers) return _denied("Fournisseurs");
-        return const SuppliersScreen();
+        if (!user.canManageSuppliers) { page = _denied("Fournisseurs"); break; }
+        page = const SuppliersScreen();
+        break;
       case 9:
-        if (!user.canAccessSettings) return _denied("Paramètres");
-        return const SettingsScreen();
+        if (!user.canAccessSettings) { page = _denied("Paramètres"); break; }
+        page = const SettingsScreen();
+        break;
       case 10:
-        if (!user.canSell) return _denied("Devis");
-        return const QuotesScreen();
+        if (!user.canSell) { page = _denied("Devis"); break; }
+        page = const QuotesScreen();
+        break;
       case 11:
-        if (!user.canManageInventory) return _denied("Entrepôts");
-        return const WarehousesScreen();
+        if (!user.canManageInventory) { page = _denied("Entrepôts"); break; }
+        page = const WarehousesScreen();
+        break;
       case 12:
-        if (!user.canManageCustomers) return _denied("Dettes");
-        return const ClientDebtScreen();
+        if (!user.canManageCustomers) { page = _denied("Dettes"); break; }
+        page = const ClientDebtScreen();
+        break;
       case 13:
-        if (!user.canManageExpenses) return _denied("Dépenses");
-        return const ExpensesScreen();
+        if (!user.canManageExpenses) { page = _denied("Dépenses"); break; }
+        page = const ExpensesScreen();
+        break;
       case 14:
-        if (!user.canManageInventory) return _denied("Alertes");
-        return const StockAlertsScreen();
+        if (!user.canManageInventory) { page = _denied("Alertes"); break; }
+        page = const StockAlertsScreen();
+        break;
       case 15:
-        if (!user.canManageInventory) return _denied("Inventaire Physique");
-        return const StockAuditScreen();
+        if (!user.canManageInventory) { page = _denied("Inventaire Physique"); break; }
+        page = const StockAuditScreen();
+        break;
       case 16:
-        if (!user.canManageSuppliers) return _denied("Achats");
-        return const PurchaseScreen();
+        if (!user.canManageSuppliers) { page = _denied("Achats"); break; }
+        page = const PurchaseScreen();
+        break;
       case 18:
-        return const HelpScreen();
+        page = const HelpScreen();
+        break;
       case 19:
-        return const HrScreen();
+        page = const HrScreen();
+        break;
       default:
-        return const DashboardContent();
+        page = const DashboardContent();
     }
+
+    // Wrap in RepaintBoundary and cache for instant future access
+    final cached = RepaintBoundary(child: page);
+    _pageCache[index] = cached;
+    return cached;
   }
 
   Widget _denied(String module) {

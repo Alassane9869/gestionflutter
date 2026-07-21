@@ -142,7 +142,7 @@ class DeepSeekService {
     ];
 
     try {
-      debugPrint('[DeepSeek] Appel modèle: $model | Contexte: ${businessContext != null ? "✅ Injecté" : "❌ Absent"}');
+      if (kDebugMode) debugPrint('[DeepSeek] Appel modèle: $model | Contexte: ${businessContext != null ? "✅ Injecté" : "❌ Absent"}');
 
       final response = await http.post(
         url,
@@ -175,13 +175,13 @@ class DeepSeekService {
             "👉 **Que faire ?**\n"
             "Veuillez recharger votre forfait en ligne ou contactez-nous. En attendant, je reste opérationnel avec mon intelligence locale Titan.";
       } else {
-        debugPrint('[DeepSeek Error] Code: ${response.statusCode} | Body: ${response.body}');
+        if (kDebugMode) debugPrint('[DeepSeek Error] Code: ${response.statusCode} | Body: ${response.body}');
         return "📡 **Un problème de connexion empêche de contacter l'assistant en ligne.**\n\n"
             "👉 **Que faire ?**\n"
             "Vérifiez que votre appareil est bien connecté à Internet, ou laissez-moi vous répondre en mode hors-ligne local.";
       }
     } on Exception catch (e) {
-      debugPrint('[DeepSeek Exception] $e');
+      if (kDebugMode) debugPrint('[DeepSeek Exception] $e');
       return "📡 **Impossible de joindre l'assistant en ligne. Votre connexion Internet semble coupée ou trop lente.**\n\n"
           "👉 **Pas de panique :** Je reste disponible hors-ligne grâce à mon intelligence locale pour gérer votre boutique !";
     }

@@ -8,6 +8,7 @@ import 'package:danaya_plus/features/finance/domain/models/financial_account.dar
 import 'package:danaya_plus/features/hr/data/hr_repository.dart';
 import 'package:danaya_plus/features/auth/providers/user_providers.dart';
 import 'package:danaya_plus/features/hr/domain/models/employee_contract.dart';
+import 'package:danaya_plus/features/hr/domain/models/leave_request.dart';
 import 'package:danaya_plus/core/utils/date_formatter.dart';
 import 'package:danaya_plus/core/widgets/enterprise_widgets.dart';
 import 'package:danaya_plus/features/settings/providers/shop_settings_provider.dart';
@@ -73,7 +74,105 @@ class _PayrollFormDialogState extends ConsumerState<PayrollFormDialog> {
     });
   }
 
-  double get _totalAdditions => _extraLines.where((e) => e.isAddition).fold(0, (sum, e) => sum + e.amount);
+  void _onUserSelected(String? userId) async {
+    if (userId == null) return;
+    setState(() {
+      _selectedUserId = userId;
+      _selectedContract = null;
+      _isLoading = true;
+    });
+
+    try {
+      final contracts = await ref.read(hrRepositoryProvider).getContractsForUser(userId);
+      final activeContract = contracts.where((c) => c.status == ContractStatus.active).firstOrNull;
+      
+      if (activeContract != null) {
+        setState(() {
+          _selectedContract = activeContract;
+          _baseSalaryCtrl.text = activeContract.baseSalary.toString();
+          
+          // Add default allowances from contract if they don't exist yet
+          if (widget.payroll == null) {
+            _extraLines.clear();
+            if (activeContract.transportAllowance > 0) {
+              _extraLines.add(PayrollLine(
+                label: "Indemnité de transport",
+                amount: activeContract.transportAllowance,
+                isAddition: true,
+              ));
+            }
+            if (activeContract.mealAllowance > 0) {
+              _extraLines.add(PayrollLine(
+                label: "Indemnité de repas",
+                amount: activeContract.mealAllowance,
+                isAddition: true,
+              ));
+            }
+          }
+        });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Champs pré-remplis avec le contrat actif.")),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint("Erreur lors de la récupération du contrat: $e");
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+  void _calculateUnpaidLeaves() async {
+    if (_selectedUserId == null || _selectedContract == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Veuillez sélectionner un employé avec un contrat actif d'abord.")));
+      return;
+    }
+    
+    setState(() => _isLoading = true);
+    try {
+      final leaves = await ref.read(hrRepositoryProvider).getLeaveRequestsForUser(_selectedUserId!);
+      
+      // Trouver les congés sans solde approuvés pour ce mois
+      int unpaidDaysThisMonth = 0;
+      for (final leave in leaves) {
+        if (leave.leaveType == LeaveType.unpaid && leave.status == LeaveStatus.approved) {
+          // Simplification : on compte les jours de ce congé s'il commence ou se termine dans le mois choisi
+          if ((leave.startDate.month == _month && leave.startDate.year == _year) ||
+              (leave.endDate.month == _month && leave.endDate.year == _year)) {
+            unpaidDaysThisMonth += leave.durationInDays;
+          }
+        }
+      }
+
+      if (unpaidDaysThisMonth > 0) {
+        final dailyRate = _selectedContract!.baseSalary / 30; // Approximation 30 jours/mois
+        final deduction = dailyRate * unpaidDaysThisMonth;
+        
+        setState(() {
+          _extraLines.add(PayrollLine(
+            label: "Absence Sans Solde ($unpaidDaysThisMonth jrs)",
+            amount: deduction,
+            isAddition: false,
+          ));
+        });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Déduction ajoutée : $unpaidDaysThisMonth jours d'absence sans solde.")));
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Aucune absence sans solde approuvée ce mois-ci.")));
+        }
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Erreur : $e")));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  double get _totalAdditions => _extraLines.where((e) => e.isAddition).fold(0.0, (sum, e) => sum + e.amount);
   double get _totalDeductions => _extraLines.where((e) => !e.isAddition).fold(0, (sum, e) => sum + e.amount);
   double get _netSalary => (double.tryParse(_baseSalaryCtrl.text) ?? 0) + _totalAdditions - _totalDeductions;
 
@@ -96,6 +195,23 @@ class _PayrollFormDialogState extends ConsumerState<PayrollFormDialog> {
         notes: _notesCtrl.text.trim(),
         createdAt: widget.payroll?.createdAt ?? DateTime.now(),
       );
+      final existingPayrolls = ref.read(allPayrollsProvider).value ?? [];
+      final hasDuplicatePayroll = existingPayrolls.any(
+        (p) => p.userId == _selectedUserId && 
+               p.month == _month && 
+               p.year == _year && 
+               p.id != widget.payroll?.id
+      );
+
+      if (hasDuplicatePayroll) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Une fiche de paie existe déjà pour cet employé en $_month/$_year."),
+            backgroundColor: Colors.red,
+          )
+        );
+        return;
+      }
 
       try {
         if (_selectedAccountId == null) {
@@ -173,13 +289,7 @@ class _PayrollFormDialogState extends ConsumerState<PayrollFormDialog> {
                             icon: FluentIcons.person_24_regular,
                             items: users.map((u) => u.id).toList(),
                             itemLabel: (id) => users.firstWhere((u) => u.id == id).username,
-                            onChanged: (v) {
-                              setState(() {
-                                _selectedUserId = v;
-                                _selectedContract = null;
-                                _baseSalaryCtrl.text = "0";
-                              });
-                            },
+                            onChanged: _onUserSelected,
                           ),
                           loading: () => const LinearProgressIndicator(),
                           error: (e, _) => Text("Erreur: $e"),
@@ -226,13 +336,7 @@ class _PayrollFormDialogState extends ConsumerState<PayrollFormDialog> {
                       icon: FluentIcons.person_24_regular,
                       items: users.map((u) => u.id).toList(),
                       itemLabel: (id) => users.firstWhere((u) => u.id == id).username,
-                      onChanged: (v) {
-                        setState(() {
-                          _selectedUserId = v;
-                          _selectedContract = null;
-                          _baseSalaryCtrl.text = "0";
-                        });
-                      },
+                      onChanged: _onUserSelected,
                     ),
                     loading: () => const LinearProgressIndicator(),
                     error: (e, _) => Text("Erreur: $e"),
@@ -360,11 +464,21 @@ class _PayrollFormDialogState extends ConsumerState<PayrollFormDialog> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text("PRIMES ET DÉDUCTIONS", style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w900, fontSize: 10, color: c.blue)),
-                  IconButton(
-                    onPressed: _addExtraLine,
-                    icon: Icon(FluentIcons.add_circle_20_regular, color: c.blue, size: 20),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
+                  Row(
+                    children: [
+                      if (_selectedContract != null)
+                        TextButton.icon(
+                          onPressed: _calculateUnpaidLeaves,
+                          icon: Icon(FluentIcons.calculator_24_regular, size: 16, color: c.blue),
+                          label: Text("Absences", style: TextStyle(fontSize: 12, color: c.blue, fontWeight: FontWeight.bold)),
+                        ),
+                      IconButton(
+                        onPressed: _addExtraLine,
+                        icon: Icon(FluentIcons.add_circle_20_regular, color: c.blue, size: 20),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
                   ),
                 ],
               ),

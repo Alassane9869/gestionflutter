@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:danaya_plus/core/widgets/enterprise_widgets.dart';
 import 'package:danaya_plus/core/utils/printing_helper.dart';
 import 'package:danaya_plus/features/settings/providers/shop_settings_provider.dart';
+import 'package:danaya_plus/core/services/email_templates.dart';
 
 class DocPreviewDialog extends ConsumerStatefulWidget {
   final Future<pw.Document>? receiptFuture;
@@ -61,46 +62,72 @@ class _DocPreviewDialogState extends ConsumerState<DocPreviewDialog> {
     
     final emailCtrl = TextEditingController(text: widget.clientEmail);
     
-    final targetEmail = await showDialog<String>(
+    String? selectedEmailTemplate = 'modern';
+
+    final resultList = await showDialog<List<String>>(
       context: context,
-      builder: (context) => EnterpriseWidgets.buildPremiumDialog(
-        context,
-        title: "Envoyer par Email",
-        icon: FluentIcons.mail_24_regular,
-        width: 450,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "Veuillez confirmer ou saisir l'adresse e-mail de réception :",
-              style: TextStyle(fontSize: 13, color: Colors.grey),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => EnterpriseWidgets.buildPremiumDialog(
+          context,
+          title: "Envoyer par Email",
+          icon: FluentIcons.mail_24_regular,
+          width: 450,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Veuillez confirmer ou saisir l'adresse e-mail de réception :",
+                style: TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+              const SizedBox(height: 16),
+              EnterpriseWidgets.buildPremiumTextField(
+                context,
+                ctrl: emailCtrl,
+                label: "ADRESSE E-MAIL DU DESTINATAIRE",
+                hint: "Ex: client@domain.com",
+                icon: FluentIcons.mail_24_regular,
+                keyboardType: TextInputType.emailAddress,
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                "Modèle d'Email :",
+                style: TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                initialValue: selectedEmailTemplate,
+                decoration: const InputDecoration(border: OutlineInputBorder()),
+                items: EmailTemplates.catalog.map((e) => DropdownMenuItem(
+                  value: e['id'],
+                  child: Text(e['name'] ?? ''),
+                )).toList(),
+                onChanged: (val) {
+                  if (val != null) {
+                    setDialogState(() => selectedEmailTemplate = val);
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Annuler"),
             ),
-            const SizedBox(height: 16),
-            EnterpriseWidgets.buildPremiumTextField(
-              context,
-              ctrl: emailCtrl,
-              label: "ADRESSE E-MAIL DU DESTINATAIRE",
-              hint: "Ex: client@domain.com",
-              icon: FluentIcons.mail_24_regular,
-              keyboardType: TextInputType.emailAddress,
+            FilledButton(
+              onPressed: () => Navigator.pop(context, [emailCtrl.text.trim(), selectedEmailTemplate!]),
+              child: const Text("Confirmer & Envoyer"),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Annuler"),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, emailCtrl.text.trim()),
-            child: const Text("Confirmer & Envoyer"),
-          ),
-        ],
       ),
     );
 
-    if (targetEmail == null || targetEmail.isEmpty) return;
+    if (resultList == null || resultList[0].isEmpty) return;
+    
+    final targetEmail = resultList[0];
+    final targetTemplate = resultList[1];
 
     setState(() => _isSendingEmail = true);
 
@@ -119,6 +146,7 @@ class _DocPreviewDialogState extends ConsumerState<DocPreviewDialog> {
           recipient: targetEmail,
           saleId: widget.receiptFileName.replaceAll(RegExp(r'[^\w]'), ''),
           pdfFile: file,
+          emailTemplateId: targetTemplate,
         );
       } else {
 
@@ -126,6 +154,7 @@ class _DocPreviewDialogState extends ConsumerState<DocPreviewDialog> {
           recipient: targetEmail,
           invoiceNumber: widget.invoiceNumber ?? "Facture",
           pdfFile: file,
+          emailTemplateId: targetTemplate,
         );
       }
 

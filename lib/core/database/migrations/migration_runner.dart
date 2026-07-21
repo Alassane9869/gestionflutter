@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:sqflite_sqlcipher/sqflite.dart';
+import 'package:danaya_plus/core/services/hr_templates.dart';
 
 class MigrationRunner {
   static Future<void> run(Database db, int oldVersion, int newVersion) async {
@@ -357,6 +358,7 @@ class MigrationRunner {
     if (oldVersion < 49) await _migrateToV49(db);
     if (oldVersion < 50) await _migrateToV50(db);
     if (oldVersion < 51) await _migrateToV51(db);
+    if (oldVersion < 52) await _migrateToV52(db);
 
     debugPrint('✅ MigrationRunner: Finalized.');
   }
@@ -453,6 +455,48 @@ class MigrationRunner {
       } catch (e) {
         debugPrint('Migration V51 trigger warning for table $table: $e');
       }
+    }
+  }
+
+  static Future<void> _migrateToV52(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS hr_templates(
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        category TEXT NOT NULL,
+        content TEXT NOT NULL,
+        is_system INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+    
+    final now = DateTime.now().toIso8601String();
+    
+    // Seed contracts
+    for (final entry in HrTemplates.allContracts.entries) {
+      await db.insert('hr_templates', {
+        'id': 'C:${entry.key}',
+        'title': entry.key,
+        'category': 'contract',
+        'content': entry.value,
+        'is_system': 1,
+        'created_at': now,
+        'updated_at': now,
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+    }
+    
+    // Seed reports
+    for (final entry in HrTemplates.allReports.entries) {
+      await db.insert('hr_templates', {
+        'id': 'R:${entry.key}',
+        'title': entry.key,
+        'category': 'report',
+        'content': entry.value,
+        'is_system': 1,
+        'created_at': now,
+        'updated_at': now,
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
     }
   }
 }

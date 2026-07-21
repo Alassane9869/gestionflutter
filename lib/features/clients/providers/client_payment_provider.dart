@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:danaya_plus/core/database/database_service.dart';
 import 'package:danaya_plus/features/clients/domain/models/client_payment.dart';
 import 'package:danaya_plus/features/clients/providers/client_providers.dart';
+import 'package:danaya_plus/features/clients/providers/debt_reminder_provider.dart';
 import 'package:danaya_plus/features/finance/providers/treasury_provider.dart';
 import 'package:danaya_plus/features/finance/providers/session_providers.dart';
 import 'package:danaya_plus/features/finance/domain/models/financial_account.dart';
@@ -42,6 +43,7 @@ class ClientPaymentActions {
         }
       }
 
+
       // 1. Insert payment record
       await txn.insert('client_payments', payment.toMap());
 
@@ -50,6 +52,9 @@ class ClientPaymentActions {
         'UPDATE clients SET credit = credit - ? WHERE id = ?',
         [payment.amount, payment.clientId],
       );
+
+      // HEAL: Sync sales table with client payment history
+      await healClientSalesDebt(payment.clientId, txn);
 
       // 3. Create financial transaction
       final tx = FinancialTransaction(

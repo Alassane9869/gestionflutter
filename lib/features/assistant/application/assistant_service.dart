@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show ThemeMode, DateTimeRange;
 import 'package:danaya_plus/features/reports/providers/report_providers.dart';
@@ -33,6 +34,7 @@ import '../../inventory/providers/dashboard_customization_provider.dart';
 import '../../inventory/providers/dashboard_providers.dart';
 import '../../pos/providers/pos_providers.dart';
 import '../../pos/providers/quote_providers.dart';
+import '../../pos/services/quote_service.dart';
 import '../../inventory/domain/models/product.dart';
 import 'macro_engine.dart';
 import '../../srm/providers/srm_service.dart';
@@ -41,6 +43,8 @@ import '../../srm/domain/models/purchase_order.dart';
 import '../../srm/domain/models/supplier.dart';
 import '../../settings/providers/settings_ui_providers.dart';
 import '../../inventory/application/inventory_automation_service.dart';
+import 'package:danaya_plus/core/services/email_service.dart';
+import 'package:danaya_plus/core/services/email_templates.dart';
 import '../domain/assistant_models.dart';
 import 'assistant_notification_service.dart';
 import 'assistant_memory_service.dart';
@@ -145,6 +149,10 @@ final assistantProvider = NotifierProvider<AssistantNotifier, AssistantState>(
 
 class AssistantNotifier extends Notifier<AssistantState> {
   AssistantActionCallback? onAction;
+  void Function(Product product, double qty)? onAddProductToActiveQuote;
+  void Function(Client client)? onSelectClientInActiveQuote;
+  void Function()? onSaveActiveQuote;
+  List<Map<String, dynamic>> Function()? onGetActiveQuoteCart;
   final RuleEngine _ruleEngine = RuleEngine();
   final HorizonEngine _horizonEngine = HorizonEngine();
   final Set<String> _shownInsightKeys = {};
@@ -349,15 +357,26 @@ class AssistantNotifier extends Notifier<AssistantState> {
 
   void toggleOpen() {
     state = state.copyWith(isOpen: !state.isOpen);
-    debugPrint('[AssistantNotifier] toggleOpen() called. New isOpen state: ${state.isOpen}');
+    if (kDebugMode) debugPrint('[AssistantNotifier] toggleOpen() called. New isOpen state: ${state.isOpen}');
+  }
+
+  void closePanel() {
+    state = state.copyWith(isOpen: false);
+    if (kDebugMode) debugPrint('[AssistantNotifier] closePanel() called. isOpen set to false');
+  }
+
+  void setActiveDialog(String? dialogName) {
+    if (state.activeDialog == dialogName) return;
+    Future.microtask(() {
+      state = state.copyWith(
+        activeDialog: () => dialogName,
+      );
+      ref.read(voiceServiceProvider.notifier).onAssistantContextChanged();
+    });
   }
 
   void setContext(AssistantContext ctx) {
     if (state.currentContext == ctx) return;
-    state = state.copyWith(
-      currentContext: ctx,
-      suggestedActions: _getProactiveSuggestions(ctx),
-    );
     
     final settings = ref.read(shopSettingsProvider).value;
     final isTitan = (settings?.assistantLevel.index ?? 0) >= AssistantPowerLevel.titan.index;
@@ -383,7 +402,6 @@ class AssistantNotifier extends Notifier<AssistantState> {
         actions = _buildDynamicSuggestions(ctx, stats, todaySalesCount, today);
         if (isTitan) {
           helpText += "\n🛡️ Fraude check actif. Je surveille les remises anormales.";
-          // Rush Hour detection
           if (_horizonEngine.isRushHour(sales)) {
             helpText += "\n⚡ **Rush détecté !** Activez le Mode Caisse Rapide pour plus de vitesse.";
             actions.insert(0, "Mode Rapide");
@@ -423,12 +441,14 @@ class AssistantNotifier extends Notifier<AssistantState> {
         actions = _buildDynamicSuggestions(ctx, stats, todaySalesCount, today);
     }
     
-    if (state.isOpen) {
+    Future.microtask(() {
       state = state.copyWith(
-        messages: [...state.messages, AssistantMessage(text: helpText)],
-        suggestedActions: actions,
+        currentContext: ctx,
+        suggestedActions: state.isOpen ? actions : _getProactiveSuggestions(ctx),
+        messages: state.isOpen ? [...state.messages, AssistantMessage(text: helpText)] : state.messages,
       );
-    }
+      ref.read(voiceServiceProvider.notifier).onAssistantContextChanged();
+    });
   }
 
   // C3. Dynamic suggestions based on real data
@@ -2530,7 +2550,6 @@ class AssistantNotifier extends Notifier<AssistantState> {
         if (idx != -1) {
           var activeThread = state.threads[idx];
           
-          // Nommer automatiquement le fil à partir du premier message de l'utilisateur
           var title = activeThread.title;
           if (title == "Nouvelle discussion") {
             final firstUser = state.messages.firstWhere((m) => m.isUser, orElse: () => AssistantMessage(text: ""));
@@ -2539,6 +2558,8 @@ class AssistantNotifier extends Notifier<AssistantState> {
               if (title.length > 28) {
                 title = "${title.substring(0, 25)}...";
               }
+              // Génération du titre intelligent en arrière-plan
+              _generateTitleInBackground(activeId, firstUser.text);
             }
           }
 
@@ -2599,6 +2620,35 @@ class AssistantNotifier extends Notifier<AssistantState> {
     );
   }
 
+  Future<void> renameThread(String threadId, String newTitle) async {
+    final cleanedTitle = newTitle.trim();
+    if (cleanedTitle.isEmpty) return;
+
+    state = state.copyWith(
+      threads: state.threads.map((t) {
+        if (t.id == threadId) {
+          return t.copyWith(title: cleanedTitle);
+        }
+        return t;
+      }).toList(),
+    );
+    await _saveThreadsToPrefs();
+  }
+
+  Future<void> _generateTitleInBackground(String threadId, String userMessage) async {
+    try {
+      final settings = ref.read(shopSettingsProvider).value;
+      if (settings == null || settings.geminiApiKey.isEmpty) return;
+      final geminiService = GeminiService(apiKey: settings.geminiApiKey);
+      final generatedTitle = await geminiService.generateLogicalTitle(userMessage);
+      if (generatedTitle != null && generatedTitle.isNotEmpty) {
+        await renameThread(threadId, generatedTitle);
+      }
+    } catch (e) {
+      if (kDebugMode) debugPrint('[AssistantService] Title generation error: $e');
+    }
+  }
+
   Future<void> deleteThread(String threadId) async {
     final updatedThreads = state.threads.where((t) => t.id != threadId).toList();
     String? newActiveId = state.currentThreadId;
@@ -2637,20 +2687,7 @@ class AssistantNotifier extends Notifier<AssistantState> {
     await _saveThreadsToPrefs();
   }
 
-  Future<void> renameThread(String threadId, String newTitle) async {
-    final cleanedTitle = newTitle.trim();
-    if (cleanedTitle.isEmpty) return;
 
-    final updatedThreads = state.threads.map((t) {
-      if (t.id == threadId) {
-        return t.copyWith(title: cleanedTitle);
-      }
-      return t;
-    }).toList();
-
-    state = state.copyWith(threads: updatedThreads);
-    await _saveThreadsToPrefs();
-  }
 
   void toggleSidebar() {
     state = state.copyWith(isSidebarOpen: !state.isSidebarOpen);
@@ -2851,6 +2888,23 @@ class AssistantNotifier extends Notifier<AssistantState> {
   }
 
   Future<String> buildBusinessContext() async {
+    final String activeScreenLabel;
+    switch (state.currentContext) {
+      case AssistantContext.dashboard: activeScreenLabel = "Tableau de Bord / Dashboard"; break;
+      case AssistantContext.inventory: activeScreenLabel = "Gestion des Produits / Stock / Inventaire"; break;
+      case AssistantContext.pos: activeScreenLabel = "Caisse / Point de Vente (POS)"; break;
+      case AssistantContext.finance: activeScreenLabel = "Gestion Financière / Trésorerie / Dépenses"; break;
+      case AssistantContext.clients: activeScreenLabel = "Gestion Clients"; break;
+      case AssistantContext.suppliers: activeScreenLabel = "Fournisseurs (SRM)"; break;
+      case AssistantContext.settings: activeScreenLabel = "Paramètres de la Boutique"; break;
+      case AssistantContext.reports: activeScreenLabel = "Rapports et Analyses"; break;
+      case AssistantContext.general: activeScreenLabel = "Général / Accueil"; break;
+    }
+
+    final String activeDialogLabel = state.activeDialog != null
+        ? "Formulaire / Dialogue actuellement ouvert : ${state.activeDialog}"
+        : "Aucun formulaire/dialogue ouvert";
+
     // Charger et récupérer la mémoire persistante
     await ref.read(assistantMemoryProvider.notifier).loadMemories();
     final memoryPrompt = ref.read(assistantMemoryProvider.notifier).getFormattedMemoryPrompt();
@@ -2888,6 +2942,7 @@ class AssistantNotifier extends Notifier<AssistantState> {
     final products = await ref.read(productListProvider.future);
     final suppliers = await ref.read(supplierListProvider.future);
     final salesAsync = await ref.read(salesHistoryProvider.future);
+    final quotesAsync = await ref.read(quoteListProvider.future);
     final stats = StockStats.fromProducts(products);
     final today = DateTime.now();
 
@@ -3035,6 +3090,15 @@ class AssistantNotifier extends Notifier<AssistantState> {
       return '    * Le $dateStr à $timeStr | Vendeur: ${s.userName ?? "Inconnu"} | Total: ${DateFormatter.formatCurrency(s.sale.totalAmount, currency, removeDecimals: removeDecimals)} | Mode: ${s.sale.paymentMethod ?? "Espèces"} | Client: ${s.clientName ?? "Anonyme"} | Contenu: $itemsStr';
     }).join('\n');
 
+    final quotesSummary = quotesAsync.isNotEmpty
+        ? quotesAsync.take(isMax ? 15 : (isAdvancedOrMax ? 8 : 3)).map((q) {
+            final clientName = q['client'] != null ? q['client']['name'] : 'Client Anonyme';
+            final dateStr = DateFormatter.formatDate(DateTime.parse(q['date'] as String));
+            final total = DateFormatter.formatCurrency((q['total_amount'] as num).toDouble(), currency, removeDecimals: removeDecimals);
+            return '    * ${q['quote_number']} ($clientName) du $dateStr : $total [Statut: ${q['status']}]';
+          }).join('\n')
+        : '    * Aucun devis enregistré';
+
     final stockValueStr = canManageStock || canAccessReports ? DateFormatter.formatCurrency(stats.totalStockValue, currency, removeDecimals: removeDecimals) : 'Accès restreint';
     final debtorsCountStr = canAccessFinance ? '${debtors.length} clients' : 'Accès restreint';
     final totalDebtStr = canAccessFinance ? DateFormatter.formatCurrency(totalDebt, currency, removeDecimals: removeDecimals) : 'Accès restreint';
@@ -3072,6 +3136,8 @@ Boutique : ${settings?.name ?? 'Non configurée'} | ${settings?.address ?? ''}
 Date : ${DateFormatter.formatDate(today)} | Heure : ${today.hour}h${today.minute.toString().padLeft(2, '0')}
 Devise : $currency
 Session de caisse actuelle : $sessionStatusStr
+Écran actuel de l'utilisateur : $activeScreenLabel
+État des fenêtres/dialogues : $activeDialogLabel
 
 🛒 PANIER EN COURS (VENTE ACTIVE) :
   - Client associé à la vente : $selectedClientName
@@ -3109,6 +3175,9 @@ ${assignmentsSummary.isNotEmpty ? assignmentsSummary : '    * Aucune affectation
   - Clients débiteurs : $debtorsCountStr | Dettes cumulées : $totalDebtStr
   - Liste des débiteurs principaux de la boutique :
 ${topDebtorsList.isNotEmpty ? topDebtorsList : '    * Aucun client débiteur'}
+
+📄 DEVIS & PROFORMAS (Total devis: ${quotesAsync.length}) :
+$quotesSummary
 
 🔮 PRÉDICTIONS & CONSEILS DE GESTION (HORIZON ENGINE) :
 $insightsSummary
@@ -3152,7 +3221,7 @@ Pour exécuter une action, vous DEVEZ inclure l'une des balises exactes suivante
 - [ACTION: THEME_DARK] -> Active le mode sombre.
 - [ACTION: THEME_LIGHT] -> Active le mode clair.
 - [ACTION: THEME_COLOR, color: X] -> Change la couleur d'accentuation principale de l'interface de l'application. X doit être l'un des suivants : blue, orange, green, purple, red, teal, pink, grey. (ex: [ACTION: THEME_COLOR, color: teal])
-- [ACTION: NAVIGATE, target: X] -> Va vers une page (X = pos, inventory, finance, clients, suppliers, settings, reports, dashboard).
+- [ACTION: NAVIGATE, target: X] -> Va vers une page (X = pos, inventory, finance, clients, suppliers, settings, reports, dashboard, quotes).
 - [ACTION: NOTIFY, message: X] -> Affiche une notification toast importante à l'utilisateur. (ex: [ACTION: NOTIFY, message: Attention au stock bas !])
 - [ACTION: SET_CURRENCY, currency: X] -> Change la devise de la boutique (ex: FCFA, USD, EUR).
 - [ACTION: ENABLE_LOYALTY] -> Active le système de points de fidélité.
@@ -3166,7 +3235,9 @@ Pour exécuter une action, vous DEVEZ inclure l'une des balises exactes suivante
 - [ACTION: GET_QUOTES_LIST] -> Récupère la liste complète des devis de la boutique.
 - [ACTION: DELETE_QUOTE, quote_number: Q] -> Supprime définitivement le devis ayant le numéro ou partie de numéro Q. (ex: [ACTION: DELETE_QUOTE, quote_number: DEV-123456])
 - [ACTION: UPDATE_QUOTE_STATUS, quote_number: Q, status: S] -> Met à jour le statut du devis numéro Q avec le statut S (S = PENDING, ACCEPTED, REJECTED). (ex: [ACTION: UPDATE_QUOTE_STATUS, quote_number: DEV-123456, status: ACCEPTED])
+- [ACTION: UPDATE_QUOTE, quote_number: Q, client_name: C, validity_days: V, status: S] -> Modifie le devis Q en temps réel (met à jour le client C, la validité V jours, ou le statut S).
 - [ACTION: CONVERT_QUOTE_TO_SALE, quote_number: Q] -> Facture et convertit le devis Q en chargeant ses articles dans le panier et en ouvrant la caisse. (ex: [ACTION: CONVERT_QUOTE_TO_SALE, quote_number: DEV-123456])
+- [ACTION: TRIGGER_UI_ACTION, action_type: A] -> Déclenche une action d'interface utilisateur ou ouvre un formulaire/boîte de dialogue (A peut être : new_quote, new_product, new_client, new_supplier, new_expense, transfer_stock). Utilise-la quand l'utilisateur demande d'ouvrir un formulaire ou de cliquer sur Nouveau Devis/Produit/Client/Dépense. (ex: [ACTION: TRIGGER_UI_ACTION, action_type: new_quote])
 - [ACTION: EXPORT_REPORT, format: F, period: P] -> Génère et exporte un rapport de performance. F est le format ('pdf' ou 'excel', par défaut 'pdf') et P est la période ('today', 'week', ou 'month', par défaut 'month').''' : '''
  
 === NOTE ===
@@ -3420,7 +3491,7 @@ $memoryPrompt
             await _executeCloudAction(actionType, params, settings);
             executedActions.add(actionType);
           } catch (e) {
-            debugPrint("Error executing cloud action $actionType: $e");
+            if (kDebugMode) debugPrint("Error executing cloud action $actionType: $e");
           }
         }
         
@@ -3437,7 +3508,7 @@ $memoryPrompt
         _validateActionClaims(textToShow, aiResponse, executedActions, settings.allowCloudAiActions);
       }
     } catch (e) {
-      debugPrint("Cloud AI error: $e");
+      if (kDebugMode) debugPrint("Cloud AI error: $e");
       await _processUserMessage(text, isConnectionFallback: true);
     }
   }
@@ -3496,7 +3567,7 @@ $memoryPrompt
     }
 
     if (warnings.isNotEmpty) {
-      debugPrint("AI claimed actions without execution: ${warnings.join(', ')}");
+      if (kDebugMode) debugPrint("AI claimed actions without execution: ${warnings.join(', ')}");
       if (!actionsAllowed) {
         addAssistantMessage(
           "$textToShow\n\n⚠️ **Note du système** : L'assistant a mentionné avoir effectué les actions suivantes : *${warnings.join(', ')}*. "
@@ -3596,6 +3667,7 @@ $memoryPrompt
         else if (target == 'suppliers') { payload = 8; }
         else if (target == 'settings') { payload = 9; }
         else if (target == 'reports') { payload = 5; }
+        else if (target == 'quotes' || target == 'devis') { payload = 10; }
         if (onAction != null) onAction!("navigate", payload: payload);
         break;
       case 'NOTIFY':
@@ -3684,6 +3756,33 @@ $memoryPrompt
         final price = double.tryParse(params['price'] ?? '0') ?? 0.0;
         final purchasePrice = double.tryParse(params['purchasePrice'] ?? '0') ?? 0.0;
         final qty = double.tryParse(params['quantity'] ?? '0') ?? 0.0;
+        // 🛡️ Garde-fou : prix de vente aberrant (= garde-fou identique mode local NLP)
+        if (price > 50000000) {
+          addAssistantMessage(
+            "🛡️ **Sécurité** : Un prix de vente de **$price FCFA** dépasse la limite autorisée (50 000 000 FCFA). "
+            "Veuillez créer ce produit manuellement dans la **Gestion Produits**.",
+            isError: true,
+          );
+          return;
+        }
+        // 🛡️ Garde-fou : vente à perte interdite
+        if (purchasePrice > 0 && price < purchasePrice) {
+          addAssistantMessage(
+            "🛡️ **Alerte Marge Négative** : Le prix de vente ($price FCFA) est inférieur au prix d'achat ($purchasePrice FCFA). "
+            "Je refuse de créer ce produit pour protéger votre rentabilité.",
+            isError: true,
+          );
+          return;
+        }
+        // 🛡️ Garde-fou : quantité excessive
+        if (qty > 100) {
+          addAssistantMessage(
+            "🛡️ **Sécurité** : Ajustement de stock de **$qty unités** trop élevé via l'IA (max 100). "
+            "Veuillez enregistrer le stock manuellement dans l'inventaire.",
+            isError: true,
+          );
+          return;
+        }
         final category = params['category'];
         final barcode = params['barcode'];
         final reference = params['reference'] ?? "REF-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}";
@@ -3972,6 +4071,15 @@ $memoryPrompt
       case 'ADD_EXPENSE':
         final amount = double.tryParse(params['amount'] ?? '0') ?? 0.0;
         if (amount <= 0) return;
+        // 🛡️ Garde-fou : limite identique à celle du mode local (100 000 FCFA sans confirmation)
+        if (amount > 100000) {
+          addAssistantMessage(
+            "⚠️ **Sécurité** : Une dépense de **$amount FCFA** dépasse le seuil autorisé par l'IA (100 000 FCFA). "
+            "Veuillez saisir cette dépense manuellement dans l'onglet **Dépenses** pour valider.",
+            isError: true,
+          );
+          return;
+        }
         final categoryStr = params['category'] ?? 'DIVERS';
         final description = params['description'] ?? 'Dépense via Assistant';
         
@@ -4099,6 +4207,65 @@ $memoryPrompt
           );
         }
         break;
+      case 'SAVE_ACTIVE_QUOTE':
+        if (onSaveActiveQuote != null && (state.activeDialog == 'Création Devis' || state.activeDialog == 'Modification Devis')) {
+          onSaveActiveQuote!();
+          addAssistantMessage("💾 **Sauvegarde du devis** : Le devis actuellement ouvert a été enregistré.");
+        } else {
+          addAssistantMessage("⚠️ **Erreur** : Je ne peux pas sauvegarder de devis car aucun formulaire de devis n'est ouvert actuellement.", isError: true);
+        }
+        break;
+      case 'GET_CART_STATUS':
+        if (onGetActiveQuoteCart != null && (state.activeDialog == 'Création Devis' || state.activeDialog == 'Modification Devis')) {
+          final cartItems = onGetActiveQuoteCart!();
+          final total = cartItems.fold(0.0, (sum, item) => sum + (item['total'] as num).toDouble());
+          if (cartItems.isEmpty) {
+            addAssistantMessage("🛒 **Devis actuel** : Le devis est actuellement vide.");
+          } else {
+            addAssistantMessage("🛒 **Devis actuel** :\n• Total : **${total.toStringAsFixed(0)} FCFA**\n• Articles : **${cartItems.length}**");
+          }
+        } else {
+          final cartItems = ref.read(cartProvider);
+          final total = cartItems.fold(0.0, (sum, item) => sum + item.lineTotal);
+          if (cartItems.isEmpty) {
+            addAssistantMessage("🛒 **Panier de caisse** : Le panier est actuellement vide.");
+          } else {
+            addAssistantMessage("🛒 **Panier de caisse** :\n• Total : **${total.toStringAsFixed(0)} FCFA**\n• Articles : **${cartItems.length}**");
+          }
+        }
+        break;
+      case 'SEND_EMAIL':
+        final to = params['to'];
+        final subject = params['subject'];
+        final body = params['body'];
+        final templateId = params['template_id'] ?? 'classic';
+        if (to != null && to.isNotEmpty) {
+          final emailService = ref.read(emailServiceProvider);
+          final shopName = ref.read(shopSettingsProvider).value?.name ?? 'Ma Boutique';
+          
+          final finalHtmlBody = EmailTemplates.buildHtml(
+            templateId,
+            subject: subject ?? 'Message',
+            body: body ?? '',
+            shopName: shopName,
+          );
+
+          final result = await emailService.sendEmail(
+            recipient: to,
+            subject: subject ?? 'Message',
+            body: finalHtmlBody,
+            isHtml: true,
+          );
+          
+          if (result.success) {
+            addAssistantMessage("📧 **Email envoyé** : L'email a été expédié avec succès via le système SMTP de l'application !");
+          } else {
+            addAssistantMessage("⚠️ **Erreur d'envoi** : Impossible d'envoyer l'email via SMTP. Motif : ${result.errorMessage}\n\nVérifiez que le SMTP est bien configuré dans les paramètres de l'application.", isError: true);
+          }
+        } else {
+          addAssistantMessage("⚠️ **Erreur** : L'adresse email du destinataire est manquante.", isError: true);
+        }
+        break;
       case 'CREATE_QUOTE':
         final cart = ref.read(cartProvider);
         if (cart.isEmpty) {
@@ -4140,6 +4307,7 @@ $memoryPrompt
           );
           
           ref.invalidate(quoteListProvider);
+          await ref.read(quoteListProvider.future);
           ref.read(cartProvider.notifier).clear();
           
           addAssistantMessage(
@@ -4179,6 +4347,7 @@ $memoryPrompt
           } else {
             await ref.read(quoteRepositoryProvider).deleteQuote(matched['id']);
             ref.invalidate(quoteListProvider);
+            await ref.read(quoteListProvider.future);
             addAssistantMessage("🗑️ **Devis supprimé** : Le devis **${matched['quote_number']}** a été supprimé avec succès.");
           }
         } catch (e) {
@@ -4212,6 +4381,7 @@ $memoryPrompt
           } else {
             await ref.read(quoteRepositoryProvider).updateQuoteStatus(matched['id'], newStatus);
             ref.invalidate(quoteListProvider);
+            await ref.read(quoteListProvider.future);
             final statusStr = newStatus == 'ACCEPTED' 
                 ? 'accepté ✅' 
                 : newStatus == 'REJECTED' 
@@ -4221,6 +4391,85 @@ $memoryPrompt
           }
         } catch (e) {
           addAssistantMessage("⚠️ **Erreur lors de la mise à jour** : $e", isError: true);
+        }
+        break;
+
+      case 'UPDATE_QUOTE':
+        final userUpdate = ref.read(authServiceProvider).value;
+        if (userUpdate == null || !userUpdate.canSell) {
+          addAssistantMessage("🛡️ **Action refusée** : Vous n'avez pas l'autorisation de modifier les devis.", isError: true);
+          break;
+        }
+        final qNumUpdate = params['quote_number'];
+        if (qNumUpdate == null || qNumUpdate.trim().isEmpty) {
+          addAssistantMessage("⚠️ **Erreur** : Numéro de devis manquant.", isError: true);
+          break;
+        }
+        try {
+          final quotes = await ref.read(quoteListProvider.future);
+          Map<String, dynamic>? matched;
+          for (final q in quotes) {
+            if (q['quote_number'].toString().toLowerCase().contains(qNumUpdate.trim().toLowerCase())) {
+              matched = q;
+              break;
+            }
+          }
+          if (matched == null) {
+            addAssistantMessage("⚠️ **Erreur** : Devis non trouvé pour '$qNumUpdate'.", isError: true);
+          } else {
+            String? newClientId = matched['client_id'];
+            final newClientName = params['client_name'];
+            if (newClientName != null && newClientName.trim().isNotEmpty) {
+              final clients = await ref.read(clientListProvider.future);
+              for (final c in clients) {
+                if (c.name.toLowerCase().contains(newClientName.trim().toLowerCase())) {
+                  newClientId = c.id;
+                  break;
+                }
+              }
+            }
+
+            final newStatus = params['status']?.toUpperCase();
+            if (newStatus != null && newStatus.isNotEmpty) {
+              await ref.read(quoteRepositoryProvider).updateQuoteStatus(matched['id'], newStatus);
+            }
+
+            DateTime? validUntil;
+            if (params['validity_days'] != null) {
+              final days = int.tryParse(params['validity_days']!) ?? 30;
+              validUntil = DateTime.now().add(Duration(days: days));
+            } else if (matched['valid_until'] != null) {
+              validUntil = DateTime.parse(matched['valid_until']);
+            }
+
+            final List<QuoteItem> items = ((matched['items'] as List?) ?? []).map((i) => QuoteItemWithId(
+              name: i['custom_name'] ?? 'Article',
+              qty: (i['quantity'] as num).toDouble(),
+              unitPrice: (i['unit_price'] as num).toDouble(),
+              unit: i['unit'],
+              description: i['description'],
+              discountAmount: (i['discount_amount'] as num? ?? 0).toDouble(),
+              productId: i['product_id'],
+            )).toList();
+
+            final subtotal = (matched['subtotal'] as num).toDouble();
+            final totalAmount = (matched['total_amount'] as num).toDouble();
+
+            await ref.read(quoteRepositoryProvider).updateQuote(
+              quoteId: matched['id'],
+              clientId: newClientId,
+              items: items,
+              subtotal: subtotal,
+              totalAmount: totalAmount,
+              validUntil: validUntil,
+            );
+
+            ref.invalidate(quoteListProvider);
+            await ref.read(quoteListProvider.future);
+            addAssistantMessage("📄 **Devis mis à jour en temps réel** : Le devis **${matched['quote_number']}** a été modifié.");
+          }
+        } catch (e) {
+          addAssistantMessage("⚠️ **Erreur lors de la mise à jour du devis** : $e", isError: true);
         }
         break;
 
@@ -4250,6 +4499,7 @@ $memoryPrompt
             ref.read(cartProvider.notifier).loadFromQuote(matched['items']);
             await ref.read(quoteRepositoryProvider).updateQuoteStatus(matched['id'], 'CONVERTED');
             ref.invalidate(quoteListProvider);
+            await ref.read(quoteListProvider.future);
             addAssistantMessage("🛒 **Devis converti** : Les articles du devis **${matched['quote_number']}** ont été chargés en caisse. Redirection...");
             if (onAction != null) {
               onAction!('navigate', payload: 3); // POS Page
@@ -4259,6 +4509,7 @@ $memoryPrompt
           addAssistantMessage("⚠️ **Erreur lors de la conversion** : $e", isError: true);
         }
         break;
+
 
       case 'GET_QUOTES_LIST':
         final user = ref.read(authServiceProvider).value;
@@ -4289,6 +4540,36 @@ $memoryPrompt
               "• Devis en attente : **${pendingQuotes.length}** pour un total de **${DateFormatter.formatCurrency(totalPendingAmount, settings.currency, removeDecimals: settings.removeDecimals)}**\n\n"
               "**Derniers devis récents :**\n$listStr"
               "${quotes.length > 5 ? '\n*(...et ${quotes.length - 5} autres devis)*' : ''}");
+        }
+      case 'TRIGGER_UI_ACTION':
+        final actionType = params['action_type']?.toLowerCase() ?? '';
+        if (actionType.isNotEmpty) {
+          if (onAction != null) {
+            onAction!('ui_action', payload: {
+              'action_type': actionType,
+              ...params,
+            });
+            String frenchLabel = '';
+            if (actionType == 'new_quote') {
+              frenchLabel = 'Création Devis';
+            } else if (actionType == 'new_product') {
+              frenchLabel = 'Création Produit';
+            } else if (actionType == 'new_client') {
+              frenchLabel = 'Création Client';
+            } else if (actionType == 'new_supplier') {
+              frenchLabel = 'Création Fournisseur';
+            } else if (actionType == 'transfer_stock') {
+              frenchLabel = 'Transfert de Stock';
+            } else if (actionType == 'new_expense') {
+              frenchLabel = 'Enregistrement Dépense';
+            }
+            
+            addAssistantMessage("🖥️ **Action d'interface** : J'ai ouvert le formulaire **$frenchLabel**.");
+          } else {
+            addAssistantMessage("⚠️ **Erreur** : Impossible d'exécuter l'action d'interface.", isError: true);
+          }
+        } else {
+          addAssistantMessage("⚠️ **Erreur** : Type d'action UI non spécifié.", isError: true);
         }
         break;
 

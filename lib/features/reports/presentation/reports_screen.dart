@@ -1,24 +1,27 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'dart:io';
+import 'package:share_plus/share_plus.dart';
+
 import 'package:danaya_plus/features/reports/providers/report_providers.dart';
+import 'package:danaya_plus/features/reports/domain/models/report_models.dart';
 import 'package:danaya_plus/features/reports/services/pdf_report_service.dart';
 import 'package:danaya_plus/features/reports/services/excel_export_service.dart';
 import 'package:danaya_plus/features/reports/services/receipt_report_service.dart';
 import 'package:danaya_plus/features/auth/application/auth_service.dart';
 import 'package:danaya_plus/core/database/database_service.dart';
 import 'package:danaya_plus/core/utils/date_formatter.dart';
-import 'package:danaya_plus/features/inventory/presentation/dashboard_screen.dart';
-import 'package:fl_chart/fl_chart.dart';
-
-import 'package:danaya_plus/core/widgets/enterprise_widgets.dart';
-import 'package:danaya_plus/core/theme/app_theme.dart';
 import 'package:danaya_plus/core/extensions/ref_extensions.dart';
 import 'package:danaya_plus/core/widgets/access_denied_screen.dart';
+import 'package:danaya_plus/core/widgets/enterprise_widgets.dart';
 import 'package:danaya_plus/core/services/email_service.dart';
 import 'package:danaya_plus/features/settings/providers/shop_settings_provider.dart';
-import 'package:share_plus/share_plus.dart';
-import 'dart:io';
+import 'package:danaya_plus/features/inventory/presentation/dashboard_screen.dart';
+import 'package:danaya_plus/features/inventory/presentation/widgets/dashboard_widgets.dart';
 
 class ReportsScreen extends ConsumerStatefulWidget {
   const ReportsScreen({super.key});
@@ -59,9 +62,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final accent = theme.colorScheme.primary;
+    final c = DashColors.of(context);
     final range = ref.watch(dateRangeProvider);
     final kpisAsync = ref.watch(reportKPIsProvider(range));
     final topProductsAsync = ref.watch(topProductsProvider(range));
@@ -76,463 +77,136 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     }
 
     // Log access once
+    final loggedUserId = user.id;
+    final loggedUserName = user.username;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(databaseServiceProvider).logActivity(
-        userId: user.id,
+        userId: loggedUserId,
         actionType: 'VIEW_REPORTS',
-        description: 'Consultation des rapports par ${user.username}',
+        description: 'Consultation des rapports par $loggedUserName',
       );
     });
 
+    final w = MediaQuery.of(context).size.width;
+    final isWide = w > 1100;
 
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 24, 28, 0),
+    return Container(
+      color: c.bg,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── HEADER ──
-          Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-            if (Navigator.canPop(context) || ref.watch(navigationProvider) != 0)
-              Padding(
-                padding: const EdgeInsets.only(right: 16),
-                child: IconButton(
-                  onPressed: () {
-                    if (Navigator.canPop(context)) {
-                      Navigator.pop(context);
-                    } else {
-                      ref.read(navigationProvider.notifier).setPage(0, ref);
-                    }
-                  },
-                  icon: const Icon(FluentIcons.chevron_left_24_regular),
-                  style: IconButton.styleFrom(
-                    backgroundColor: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-              ),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [accent, accent.withValues(alpha: 0.7)]),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(FluentIcons.data_pie_24_filled, color: Colors.white, size: 22),
-            ),
-            const SizedBox(width: 14),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text("Rapports & Analytics", style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF1F2937))),
-              Text("${DateFormatter.formatDate(range.start)} → ${DateFormatter.formatDate(range.end)}", style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
-            ])),
-            // Period selector
-            Container(
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.secondary,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(children: ["Aujourd'hui", "Cette Semaine", "Ce Mois", "Cette Année"].map((p) {
-                final sel = _selectedRange == p;
-                return GestureDetector(
-                  onTap: () => _updateRange(p),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: sel ? accent : Colors.transparent,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(p, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: sel ? Colors.white : Colors.grey.shade600)),
-                  ),
-                );
-              }).toList()),
-            ),
-            const SizedBox(width: 12),
-            _buildExportButtons(context),
-          ]),
-          const SizedBox(height: 20),
+          // ═══════════════════════════════════════════════════
+          // TOP BAR — Identique au Dashboard
+          // ═══════════════════════════════════════════════════
+          _buildTopBar(c, range),
 
-          // ── MAIN CONTENT ──
+          // ═══════════════════════════════════════════════════
+          // SCROLLABLE CONTENT
+          // ═══════════════════════════════════════════════════
           Expanded(
             child: SingleChildScrollView(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                // ── KPI ROW ──
-                kpisAsync.when(
-                  loading: () => const SizedBox(height: 88, child: Center(child: CircularProgressIndicator())),
-                  error: (err, _) => const SizedBox(height: 88),
-                  data: (kpi) => Row(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ═══════════════════════════════════════════════════
+                  // SECTION 1 — KPIs
+                  // ═══════════════════════════════════════════════════
+                  kpisAsync.when(
+                    loading: () => SizedBox(
+                      height: 80,
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          strokeWidth: 3,
+                          valueColor: AlwaysStoppedAnimation(c.primary),
+                        ),
+                      ),
+                    ),
+                    error: (e, _) => const SizedBox(height: 80),
+                    data: (kpi) => _buildKpiGrid(c, kpi, w),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // ═══════════════════════════════════════════════════
+                  // ACTIONS D'EXPORT ET IMPRESSION
+                  // ═══════════════════════════════════════════════════
+                  _buildSectionLabel("Actions & Exports", FluentIcons.print_24_regular, c),
+                  const SizedBox(height: 12),
+                  Row(
                     children: [
-                      Expanded(
-                        child: _PremiumKpiTile(
-                          icon: FluentIcons.money_24_regular,
-                          label: "Chiffre d'affaires",
-                          value: ref.fmt(kpi.totalRevenue),
-                          color: isDark ? Colors.white : Colors.black87,
-                          isDark: isDark,
-                        ),
-                      ),
+                      _buildBigActionBtn(c, "Ticket Z", FluentIcons.print_24_regular, c.primary, () => _confirmZReport(context)),
                       const SizedBox(width: 12),
-                      Expanded(
-                        child: _PremiumKpiTile(
-                          icon: FluentIcons.receipt_24_regular,
-                          label: "Marge brute",
-                          value: ref.fmt(kpi.totalProfit),
-                          color: AppTheme.successClr,
-                          isDark: isDark,
-                        ),
-                      ),
+                      _buildBigActionBtn(c, "Rapport PDF", FluentIcons.document_pdf_24_regular, c.rose, () => _exportPDF(context)),
                       const SizedBox(width: 12),
-                      Expanded(
-                        child: _PremiumKpiTile(
-                          icon: FluentIcons.money_hand_24_regular,
-                          label: "Bénéfice Net",
-                          value: ref.fmt(kpi.netProfit),
-                          color: accent,
-                          isDark: isDark,
-                        ),
-                      ),
+                      _buildBigActionBtn(c, "Export Excel", FluentIcons.table_24_regular, c.emerald, () => _exportExcel(context)),
                       const SizedBox(width: 12),
-                      Expanded(
-                        child: _PremiumKpiTile(
-                          icon: FluentIcons.cart_24_regular,
-                          label: "Ventes",
-                          value: DateFormatter.formatNumber(kpi.salesCount),
-                          color: Colors.orange.shade600,
-                          isDark: isDark,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _PremiumKpiTile(
-                          icon: FluentIcons.data_pie_24_regular,
-                          label: "Rentabilité",
-                          value: "${kpi.netMarginPercentage.toStringAsFixed(1)}%",
-                          color: Colors.teal.shade600,
-                          isDark: isDark,
-                        ),
-                      ),
+                      _buildBigActionBtn(c, "Partager", FluentIcons.share_24_regular, c.blue, () => _showShareOptions(context)),
                     ],
                   ),
-                ),
 
-                const SizedBox(height: 20),
+                  const SizedBox(height: 24),
 
-                // ── CHART + TOP PRODUCTS ROW ──
-                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  // Revenue chart
-                  Expanded(
-                    flex: 3,
-                    child: _CardContainer(
-                      isDark: isDark,
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Row(children: [
-                          Icon(FluentIcons.chart_multiple_24_regular, size: 18, color: accent),
-                          const SizedBox(width: 10),
-                          Text("Évolution du chiffre d'affaires", style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: isDark ? Colors.white : const Color(0xFF1F2937))),
-                          const Spacer(),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(color: accent.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(6)),
-                            child: Text(_selectedRange, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: accent)),
-                          ),
-                        ]),
-                        const SizedBox(height: 24),
-                        SizedBox(
-                          height: 260,
-                          child: chartDataAsync.when(
-                            loading: () => const Center(child: CircularProgressIndicator()),
-                            error: (err, _) => Center(child: Text("Erreur: $err")),
-                            data: (chartData) {
-                              if (chartData.isEmpty) {
-                                return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                                  Icon(FluentIcons.chart_multiple_24_regular, size: 40, color: Colors.grey.shade300),
-                                  const SizedBox(height: 10),
-                                  Text("Aucune donnée pour cette période", style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
-                                ]));
-                              }
-                              double maxVal = chartData.map((e) => e.value).reduce((a, b) => a > b ? a : b);
-                              if (maxVal == 0) maxVal = 1000;
+                  // ═══════════════════════════════════════════════════
+                  // SECTION 2 — PERFORMANCE COMMERCIALE
+                  // ═══════════════════════════════════════════════════
+                  _buildSectionLabel("Performance Commerciale", FluentIcons.chart_multiple_24_regular, c),
+                  const SizedBox(height: 12),
+                  if (isWide)
+                    SizedBox(
+                      height: 340,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(flex: 3, child: _buildRevenueChart(c, chartDataAsync)),
+                          const SizedBox(width: 12),
+                          Expanded(flex: 2, child: _buildTopProducts(c, topProductsAsync)),
+                        ],
+                      ),
+                    )
+                  else ...[
+                    _buildRevenueChart(c, chartDataAsync),
+                    const SizedBox(height: 12),
+                    _buildTopProducts(c, topProductsAsync),
+                  ],
 
-                              return BarChart(
-                                BarChartData(
-                                  alignment: BarChartAlignment.spaceAround,
-                                  maxY: maxVal * 1.15,
-                                  barTouchData: BarTouchData(
-                                    touchTooltipData: BarTouchTooltipData(
-                                      getTooltipColor: (_) => isDark ? const Color(0xFF2D3039) : Colors.white,
-                                      getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                                        final idx = group.x.toInt();
-                                        return BarTooltipItem(
-                                          idx < 0 || idx >= chartData.length ? "" : "${chartData[idx].label}\n${ref.fmt(rod.toY)}",
-                                          TextStyle(color: accent, fontWeight: FontWeight.w800, fontSize: 12),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                  titlesData: FlTitlesData(
-                                    bottomTitles: AxisTitles(
-                                      sideTitles: SideTitles(
-                                        showTitles: true,
-                                        reservedSize: 32,
-                                        getTitlesWidget: (value, _) {
-                                          final idx = value.toInt();
-                                          // Show every label if <= 10, otherwise every 2nd
-                                          if (chartData.length > 10 && idx % 2 != 0) return const SizedBox.shrink();
-                                          if (idx < 0 || idx >= chartData.length) return const SizedBox.shrink();
-                                          return Padding(
-                                            padding: const EdgeInsets.only(top: 8),
-                                            child: Text(chartData[idx].label, style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontWeight: FontWeight.w600)),
-                                          );
-                                        },
-                                      ),
-                                    ),
-                                    leftTitles: AxisTitles(
-                                      sideTitles: SideTitles(
-                                        showTitles: true,
-                                        reservedSize: 60,
-                                        getTitlesWidget: (value, _) {
-                                          String label;
-                                          if (value >= 1000000) {
-                                            label = "${(value / 1000000).toStringAsFixed(1)}M";
-                                          } else if (value >= 1000) {
-                                            label = "${(value / 1000).toStringAsFixed(0)}k";
-                                          } else {
-                                            label = value.toStringAsFixed(0);
-                                          }
-                                          return Text(label, style: TextStyle(fontSize: 10, color: Colors.grey.shade400));
-                                        },
-                                      ),
-                                    ),
-                                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                                  ),
-                                  gridData: FlGridData(
-                                    show: true,
-                                    drawVerticalLine: false,
-                                    horizontalInterval: maxVal / 4,
-                                    getDrawingHorizontalLine: (_) => FlLine(color: isDark ? const Color(0xFF2D3039) : const Color(0xFFF0F0F0), strokeWidth: 1),
-                                  ),
-                                  borderData: FlBorderData(show: false),
-                                  barGroups: List.generate(chartData.length, (i) => BarChartGroupData(
-                                    x: i,
-                                    barRods: [BarChartRodData(
-                                      toY: chartData[i].value,
-                                      gradient: LinearGradient(colors: [accent, accent.withValues(alpha: 0.6)], begin: Alignment.bottomCenter, end: Alignment.topCenter),
-                                      width: chartData.length > 15 ? 12 : 20,
-                                      borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
-                                    )],
-                                  )),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ]),
-                    ),
+                  const SizedBox(height: 24),
+
+                  // ═══════════════════════════════════════════════════
+                  // SECTION 3 — ANALYSE FINANCIÈRE
+                  // ═══════════════════════════════════════════════════
+                  kpisAsync.when(
+                    loading: () => const SizedBox.shrink(),
+                    error: (_, __) => const SizedBox.shrink(),
+                    data: (kpi) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildSectionLabel("Analyse Financière", FluentIcons.calculator_24_regular, c),
+                          const SizedBox(height: 12),
+                          if (isWide)
+                            IntrinsicHeight(
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Expanded(flex: 3, child: _buildPnlCard(c, kpi)),
+                                  const SizedBox(width: 12),
+                                  Expanded(flex: 2, child: _buildMetricsCard(c, kpi, range)),
+                                ],
+                              ),
+                            )
+                          else ...[
+                            _buildPnlCard(c, kpi),
+                            const SizedBox(height: 12),
+                            _buildMetricsCard(c, kpi, range),
+                          ],
+                        ],
+                      );
+                    },
                   ),
 
-                  const SizedBox(width: 16),
-
-                  // Top Products
-                  Expanded(
-                    flex: 2,
-                    child: _CardContainer(
-                      isDark: isDark,
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Row(children: [
-                          const Icon(FluentIcons.trophy_24_filled, color: Colors.orange, size: 18),
-                          const SizedBox(width: 10),
-                          Text("Top Produits", style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: isDark ? Colors.white : const Color(0xFF1F2937))),
-                          const Spacer(),
-                          Text("Qté · CA", style: TextStyle(fontSize: 11, color: Colors.grey.shade400, fontWeight: FontWeight.w600)),
-                        ]),
-                        const SizedBox(height: 16),
-                        SizedBox(
-                          height: 260,
-                          child: topProductsAsync.when(
-                            loading: () => const Center(child: CircularProgressIndicator()),
-                            error: (err, _) => Center(child: Text("Erreur: $err")),
-                            data: (products) {
-                              if (products.isEmpty) {
-                                return Center(child: Text("Aucune donnée", style: TextStyle(color: Colors.grey.shade400)));
-                              }
-                              final maxRev = products.first.totalRevenue;
-                              return ListView.separated(
-                                padding: EdgeInsets.zero,
-                                itemCount: products.length,
-                                separatorBuilder: (_, __) => const Divider(height: 1, thickness: 1),
-                                itemBuilder: (_, i) {
-                                  final p = products[i];
-                                      final pct = maxRev > 0 ? p.totalRevenue / maxRev : 0.0;
-                                      return Padding(
-                                        padding: const EdgeInsets.symmetric(vertical: 8),
-                                        child: Row(children: [
-                                          Container(
-                                            width: 24,
-                                            height: 24,
-                                            alignment: Alignment.center,
-                                            decoration: BoxDecoration(
-                                              color: i < 3 ? (isDark ? Colors.white : Colors.black) : Colors.transparent,
-                                              shape: BoxShape.circle,
-                                            ),
-                                            child: Text("${i + 1}", style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11, color: i < 3 ? (isDark ? Colors.black : Colors.white) : (isDark ? Colors.grey.shade400 : Colors.grey.shade600))),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                            Row(
-                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                              children: [
-                                                Expanded(
-                                                  child: Text(p.name, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: isDark ? Colors.white : Colors.black), maxLines: 1, overflow: TextOverflow.ellipsis),
-                                                ),
-                                                Text(ref.fmt(p.totalRevenue), style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: isDark ? Colors.white : Colors.black)),
-                                              ]
-                                            ),
-                                            const SizedBox(height: 6),
-                                            Row(
-                                              children: [
-                                                Expanded(
-                                                  child: ClipRRect(
-                                                    borderRadius: BorderRadius.circular(6),
-                                                    child: LinearProgressIndicator(
-                                                      value: pct,
-                                                      minHeight: 4,
-                                                      backgroundColor: isDark ? const Color(0xFF2D3039) : const Color(0xFFF3F4F6),
-                                                      valueColor: AlwaysStoppedAnimation(accent),
-                                                    ),
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 12),
-                                                Text("${ref.qty(p.totalQuantity.toDouble())} u", style: TextStyle(fontSize: 10, color: isDark ? Colors.grey.shade400 : Colors.grey.shade500, fontWeight: FontWeight.w700)),
-                                              ],
-                                            ),
-                                          ])),
-                                        ]),
-                                      );
-                                    },
-                                  );
-                            },
-                          ),
-                        ),
-                      ]),
-                    ),
-                  ),
-                ]),
-
-                const SizedBox(height: 16),
-
-                // ── BOTTOM ROW: Profit summary + Performance metrics ──
-                kpisAsync.when(
-                  loading: () => const SizedBox.shrink(),
-                  error: (_, __) => const SizedBox.shrink(),
-                  data: (kpi) => Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    // Profit / Loss Summary
-                    Expanded(
-                      flex: 3,
-                      child: _CardContainer(
-                        isDark: isDark,
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Row(children: [
-                            Icon(FluentIcons.calculator_24_regular, size: 18, color: accent),
-                            const SizedBox(width: 10),
-                            Text("Compte de résultat simplifié", style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: isDark ? Colors.white : const Color(0xFF1F2937))),
-                          ]),
-                          const SizedBox(height: 24),
-                          Container(
-                            decoration: BoxDecoration(
-                              color: isDark ? Colors.white.withValues(alpha: 0.01) : Colors.black.withValues(alpha: 0.01),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05)),
-                            ),
-                            child: Column(
-                              children: [
-                                _PnlRow(label: "Chiffre d'affaires", value: ref.fmt(kpi.totalRevenue), isBold: true, color: isDark ? Colors.white : Colors.black, isDark: isDark),
-                                const Divider(height: 1, thickness: 1, indent: 16, endIndent: 16),
-                                _PnlRow(label: "Coût des marchandises", value: ref.fmt(kpi.totalRevenue - kpi.totalProfit), isNeg: true, isDark: isDark),
-                                const Divider(height: 1, thickness: 1),
-                                _PnlRow(label: "Marge brute", value: ref.fmt(kpi.totalProfit), isBold: true, color: const Color(0xFF10B981), isDark: isDark),
-                                const Divider(height: 1, thickness: 1, indent: 16, endIndent: 16),
-                                _PnlRow(label: "Dépenses opérationnelles", value: ref.fmt(kpi.totalExpenses), isNeg: true, isDark: isDark),
-                                const Divider(height: 1, thickness: 1),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: (kpi.totalProfit - kpi.totalExpenses) >= 0 ? const Color(0xFF10B981).withValues(alpha: 0.05) : const Color(0xFFEF4444).withValues(alpha: 0.05),
-                                    borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
-                                  ),
-                                  child: _PnlRow(
-                                    label: "RÉSULTAT NET",
-                                    value: ref.fmt(kpi.totalProfit - kpi.totalExpenses),
-                                    isBold: true,
-                                    isLarge: true,
-                                    color: (kpi.totalProfit - kpi.totalExpenses) >= 0 ? const Color(0xFF10B981) : const Color(0xFFEF4444),
-                                    isDark: isDark,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ]),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    // Performance metrics
-                    Expanded(
-                      flex: 2,
-                      child: _CardContainer(
-                        isDark: isDark,
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Row(children: [
-                            Icon(FluentIcons.gauge_24_regular, size: 18, color: accent),
-                            const SizedBox(width: 10),
-                            Text("Indicateurs de performance", style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: isDark ? Colors.white : const Color(0xFF1F2937))),
-                          ]),
-                          const SizedBox(height: 16),
-                          _MetricRow(
-                            label: "Marge brute",
-                            value: "${kpi.marginPercentage.toStringAsFixed(1)}%",
-                            icon: FluentIcons.arrow_trending_lines_24_regular,
-                            color: kpi.marginPercentage > 30 ? const Color(0xFF10B981) : (kpi.marginPercentage > 15 ? Colors.orange : const Color(0xFFEF4444)),
-                            isDark: isDark,
-                          ),
-                          const SizedBox(height: 10),
-                          _MetricRow(
-                            label: "Panier moyen",
-                            value: kpi.salesCount > 0 ? ref.fmt(kpi.totalRevenue / kpi.salesCount) : "–",
-                            icon: FluentIcons.cart_24_regular,
-                            color: accent,
-                            isDark: isDark,
-                          ),
-                          const SizedBox(height: 10),
-                          _MetricRow(
-                            label: "Ventes / jour",
-                            value: range.duration.inDays > 0 ? DateFormatter.formatNumberValue(kpi.salesCount / range.duration.inDays, decimalDigits: 1) : DateFormatter.formatNumber(kpi.salesCount),
-                            icon: FluentIcons.clock_24_regular,
-                            color: const Color(0xFF6366F1),
-                            isDark: isDark,
-                          ),
-                          const SizedBox(height: 10),
-                          _MetricRow(
-                            label: "CA / jour",
-                            value: range.duration.inDays > 0 ? ref.fmt(kpi.totalRevenue / range.duration.inDays) : ref.fmt(kpi.totalRevenue),
-                            icon: FluentIcons.calendar_24_regular,
-                            color: Colors.orange,
-                            isDark: isDark,
-                          ),
-                          const SizedBox(height: 10),
-                          _MetricRow(
-                            label: "Ratio dépenses/CA",
-                            value: kpi.totalRevenue > 0 ? "${(kpi.totalExpenses / kpi.totalRevenue * 100).toStringAsFixed(1)}%" : "–",
-                            icon: FluentIcons.arrow_trending_down_24_regular,
-                            color: const Color(0xFFEF4444),
-                            isDark: isDark,
-                          ),
-                        ]),
-                      ),
-                    ),
-                  ]),
-                ),
-                const SizedBox(height: 24),
-              ]),
+                  const SizedBox(height: 24),
+                ],
+              ),
             ),
           ),
         ],
@@ -540,35 +214,613 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     );
   }
 
-  Widget _buildExportButtons(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final color = isDark ? Colors.white : Colors.black;
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // TOP BAR — Même design que le Dashboard
+  // ═══════════════════════════════════════════════════════════════════════════════
+  Widget _buildTopBar(DashColors c, DateTimeRange range) {
+    return Container(
+      height: 56,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      decoration: BoxDecoration(
+        color: c.surface,
+        border: Border(bottom: BorderSide(color: c.border, width: 1)),
+      ),
+      child: Row(
+        children: [
+          // Back button if needed
+          if (Navigator.canPop(context) || ref.watch(navigationProvider) != 0)
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: GestureDetector(
+                onTap: () {
+                  if (Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  } else {
+                    ref.read(navigationProvider.notifier).setPage(0, ref);
+                  }
+                },
+                child: Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: c.surfaceElev,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: c.border),
+                  ),
+                  child: Icon(FluentIcons.chevron_left_24_regular, size: 16, color: c.textSecondary),
+                ),
+              ),
+            ),
+          // Animated dot
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: c.violet, shape: BoxShape.circle),
+          )
+              .animate(onPlay: (ctrl) => ctrl.repeat())
+              .custom(
+                duration: 1500.ms,
+                builder: (ctx, v, child) => Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: c.violet,
+                    boxShadow: [
+                      BoxShadow(
+                        color: c.violet.withValues(alpha: v * 0.7),
+                        blurRadius: v * 14,
+                        spreadRadius: v * 2,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          const SizedBox(width: 12),
+          Text(
+            'Rapports & Analytics',
+            style: TextStyle(
+              color: c.textPrimary,
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '${DateFormatter.formatCompactDate(range.start)} → ${DateFormatter.formatCompactDate(range.end)}',
+            style: TextStyle(color: c.textMuted, fontSize: 11),
+          ),
+          const Spacer(),
+          // Period filter chips
+          Container(
+            height: 34,
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: c.bg,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: c.border),
+            ),
+            child: Row(
+              children: ["Aujourd'hui", "Cette Semaine", "Ce Mois", "Cette Année"].map((p) {
+                final sel = _selectedRange == p;
+                return GestureDetector(
+                  onTap: () => _updateRange(p),
+                  child: AnimatedContainer(
+                    duration: 200.ms,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: sel ? c.blue : Colors.transparent,
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+                    child: Text(
+                      _shortLabel(p),
+                      style: TextStyle(
+                        color: sel ? Colors.white : c.textSecondary,
+                        fontSize: 12,
+                        fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Export actions
+          _buildTopBarAction(FluentIcons.document_pdf_24_regular, 'PDF', () => _exportPDF(context), c),
+          const SizedBox(width: 6),
+          _buildTopBarAction(FluentIcons.table_24_regular, 'Excel', () => _exportExcel(context), c),
+          const SizedBox(width: 6),
+          _buildTopBarAction(FluentIcons.print_24_regular, 'Z', () => _confirmZReport(context), c),
+          const SizedBox(width: 6),
+          _buildTopBarAction(FluentIcons.share_24_regular, null, () => _showShareOptions(context), c),
+        ],
+      ),
+    );
+  }
+
+  String _shortLabel(String label) {
+    switch (label) {
+      case "Aujourd'hui": return 'Auj.';
+      case 'Cette Semaine': return 'Sem.';
+      case 'Ce Mois': return 'Mois';
+      case 'Cette Année': return 'Année';
+      default: return label;
+    }
+  }
+
+  Widget _buildTopBarAction(IconData icon, String? label, VoidCallback onTap, DashColors c) {
+    return Tooltip(
+      message: label ?? 'Partager',
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            height: 34,
+            padding: EdgeInsets.symmetric(horizontal: label != null ? 10 : 8),
+            decoration: BoxDecoration(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: c.border),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 14, color: c.textSecondary),
+                if (label != null) ...[
+                  const SizedBox(width: 6),
+                  Text(
+                    label,
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: c.textSecondary),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBigActionBtn(DashColors c, String label, IconData icon, Color color, VoidCallback onTap) {
+    return Expanded(
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: color.withValues(alpha: 0.2)),
+            ),
+            child: Column(
+              children: [
+                Icon(icon, size: 28, color: color),
+                const SizedBox(height: 8),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                    letterSpacing: 0.5,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // SECTION LABEL — Même style que Dashboard
+  // ═══════════════════════════════════════════════════════════════════════════════
+  Widget _buildSectionLabel(String title, IconData icon, DashColors c) {
     return Row(
-      mainAxisSize: MainAxisSize.min,
       children: [
-        _buildActionBtn(context, label: "PDF", icon: FluentIcons.document_pdf_24_regular, onPressed: () => _exportPDF(context), color: color),
+        Container(
+          width: 3,
+          height: 18,
+          decoration: BoxDecoration(
+            color: c.blue,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Icon(icon, size: 16, color: c.textSecondary),
         const SizedBox(width: 8),
-        _buildActionBtn(context, label: "EXCEL", icon: FluentIcons.table_24_regular, onPressed: () => _exportExcel(context), color: color),
-        const SizedBox(width: 8),
-        _buildActionBtn(context, label: "TICKET Z", icon: FluentIcons.print_24_regular, onPressed: () => _confirmZReport(context), color: color),
-        const SizedBox(width: 8),
-        _buildActionBtn(context, label: "PARTAGER", icon: FluentIcons.share_24_regular, onPressed: () => _showShareOptions(context), color: color),
+        Text(
+          title.toUpperCase(),
+          style: TextStyle(
+            color: c.textSecondary,
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.2,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Container(height: 1, color: c.border),
+        ),
       ],
     );
   }
 
-  Widget _buildActionBtn(BuildContext context, {required String label, required IconData icon, required VoidCallback onPressed, required Color color}) {
-    return FilledButton.tonalIcon(
-      onPressed: onPressed,
-      icon: Icon(icon, size: 14, color: color),
-      label: Text(label, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 11, letterSpacing: 0.5, color: color)),
-      style: FilledButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        backgroundColor: color.withValues(alpha: 0.05),
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // KPI GRID — Réutilise UltraKpiCard du Dashboard
+  // ═══════════════════════════════════════════════════════════════════════════════
+  Widget _buildKpiGrid(DashColors c, ReportKPIs kpi, double w) {
+    final cols = w > 1200 ? 5 : (w > 800 ? 3 : (w > 500 ? 2 : 1));
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: cols,
+      mainAxisSpacing: 10,
+      crossAxisSpacing: 10,
+      childAspectRatio: cols >= 4 ? 2.8 : (cols == 3 ? 2.4 : 2.8),
+      children: [
+        UltraKpiCard(
+          label: "Chiffre d'Affaires",
+          value: ref.fmt(kpi.totalRevenue),
+          icon: FluentIcons.money_24_regular,
+          accent: c.blue,
+        ),
+        UltraKpiCard(
+          label: "Marge Brute",
+          value: ref.fmt(kpi.totalProfit),
+          icon: FluentIcons.receipt_24_regular,
+          accent: c.emerald,
+          change: kpi.totalRevenue > 0
+              ? "${kpi.marginPercentage.toStringAsFixed(1)}%"
+              : null,
+          positive: kpi.marginPercentage > 0,
+        ),
+        UltraKpiCard(
+          label: "Bénéfice Net",
+          value: ref.fmt(kpi.netProfit),
+          icon: FluentIcons.money_hand_24_regular,
+          accent: kpi.netProfit >= 0 ? c.emerald : c.rose,
+        ),
+        UltraKpiCard(
+          label: "Nombre de Ventes",
+          value: DateFormatter.formatNumber(kpi.salesCount),
+          icon: FluentIcons.cart_24_regular,
+          accent: c.amber,
+        ),
+        UltraKpiCard(
+          label: "Rentabilité Nette",
+          value: "${kpi.netMarginPercentage.toStringAsFixed(1)}%",
+          icon: FluentIcons.data_pie_24_regular,
+          accent: c.violet,
+        ),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // REVENUE CHART — Wrapped dans SectionCard
+  // ═══════════════════════════════════════════════════════════════════════════════
+  Widget _buildRevenueChart(DashColors c, AsyncValue<List<ChartDataPoint>> chartDataAsync) {
+    return SectionCard(
+      title: "Évolution du chiffre d'affaires",
+      subtitle: _selectedRange,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 16, 12),
+        child: SizedBox(
+          height: 220,
+          child: chartDataAsync.when(
+            loading: () => Center(
+              child: CircularProgressIndicator(strokeWidth: 3, valueColor: AlwaysStoppedAnimation(c.primary)),
+            ),
+            error: (err, _) => Center(
+              child: Text("Erreur: $err", style: TextStyle(color: c.rose, fontSize: 12)),
+            ),
+            data: (chartData) {
+              if (chartData.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(FluentIcons.chart_multiple_24_regular, size: 40, color: c.textMuted),
+                      const SizedBox(height: 10),
+                      Text(
+                        "Aucune donnée pour cette période",
+                        style: TextStyle(color: c.textMuted, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              double maxVal = chartData.map((e) => e.value).reduce(math.max);
+              if (maxVal == 0) maxVal = 1000;
+
+              return BarChart(
+                BarChartData(
+                  alignment: BarChartAlignment.spaceAround,
+                  maxY: maxVal * 1.15,
+                  barTouchData: BarTouchData(
+                    touchTooltipData: BarTouchTooltipData(
+                      getTooltipColor: (_) => c.surfaceElev,
+                      getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                        final idx = group.x.toInt();
+                        if (idx < 0 || idx >= chartData.length) return null;
+                        return BarTooltipItem(
+                          "${chartData[idx].label}\n${ref.fmt(rod.toY)}",
+                          TextStyle(color: c.primary, fontWeight: FontWeight.w800, fontSize: 12),
+                        );
+                      },
+                    ),
+                  ),
+                  titlesData: FlTitlesData(
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 28,
+                        getTitlesWidget: (value, _) {
+                          final idx = value.toInt();
+                          if (idx < 0 || idx >= chartData.length) return const SizedBox.shrink();
+                          final labelInterval = (chartData.length / 7).ceil();
+                          if (chartData.length > 7 && idx % labelInterval != 0 && idx != chartData.length - 1) {
+                            return const SizedBox.shrink();
+                          }
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Text(
+                              chartData[idx].label,
+                              style: TextStyle(fontSize: 10, color: c.textSecondary, fontWeight: FontWeight.w600),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 52,
+                        getTitlesWidget: (val, _) {
+                          String label;
+                          if (val >= 1000000) {
+                            label = "${(val / 1000000).toStringAsFixed(1)}M";
+                          } else if (val >= 1000) {
+                            label = "${(val / 1000).toStringAsFixed(0)}k";
+                          } else {
+                            label = val.toStringAsFixed(0);
+                          }
+                          return Text(label, style: TextStyle(fontSize: 10, color: c.textSecondary));
+                        },
+                      ),
+                    ),
+                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  ),
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    horizontalInterval: maxVal / 4,
+                    getDrawingHorizontalLine: (_) => FlLine(color: c.border, strokeWidth: 1),
+                  ),
+                  borderData: FlBorderData(show: false),
+                  barGroups: List.generate(
+                    chartData.length,
+                    (i) => BarChartGroupData(
+                      x: i,
+                      barRods: [
+                        BarChartRodData(
+                          toY: chartData[i].value,
+                          gradient: LinearGradient(
+                            colors: [c.primary, c.primary.withValues(alpha: 0.6)],
+                            begin: Alignment.bottomCenter,
+                            end: Alignment.topCenter,
+                          ),
+                          width: chartData.length > 15 ? 12 : 20,
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
       ),
     );
   }
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // TOP PRODUITS — Wrapped dans SectionCard + MetricRow
+  // ═══════════════════════════════════════════════════════════════════════════════
+  Widget _buildTopProducts(DashColors c, AsyncValue<List<TopProduct>> topProductsAsync) {
+    return SectionCard(
+      title: 'Top Produits',
+      subtitle: 'Volume de vente',
+      child: topProductsAsync.when(
+        loading: () => SizedBox(
+          height: 200,
+          child: Center(child: CircularProgressIndicator(strokeWidth: 3, valueColor: AlwaysStoppedAnimation(c.primary))),
+        ),
+        error: (err, _) => Padding(
+          padding: const EdgeInsets.all(20),
+          child: Text("Erreur: $err", style: TextStyle(color: c.rose)),
+        ),
+        data: (products) {
+          if (products.isEmpty) {
+            return Padding(
+              padding: const EdgeInsets.all(24),
+              child: Center(child: Text("Aucune donnée", style: TextStyle(color: c.textMuted))),
+            );
+          }
+          final maxRev = products.first.totalRevenue;
+          final colors = [c.blue, c.emerald, c.violet, c.amber, c.rose, c.cyan];
+          return Column(
+            children: products.take(4).toList().asMap().entries.map((entry) {
+              final i = entry.key;
+              final p = entry.value;
+              final pct = maxRev > 0 ? p.totalRevenue / maxRev : 0.0;
+              return MetricRow(
+                rank: i + 1,
+                title: p.name,
+                subtitle: '${ref.qty(p.totalQuantity.toDouble())} unités',
+                value: ref.fmt(p.totalRevenue),
+                progress: pct,
+                accent: colors[i % colors.length],
+                icon: FluentIcons.box_24_regular,
+              );
+            }).toList(),
+          );
+        },
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // COMPTE DE RÉSULTAT (P&L) — SectionCard
+  // ═══════════════════════════════════════════════════════════════════════════════
+  Widget _buildPnlCard(DashColors c, ReportKPIs kpi) {
+    final netResult = kpi.totalProfit - kpi.totalExpenses;
+    final isPositive = netResult >= 0;
+
+    return SectionCard(
+      title: 'Compte de résultat',
+      subtitle: 'Simplifié',
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Container(
+          decoration: BoxDecoration(
+            color: c.isDark ? Colors.white.withValues(alpha: 0.01) : Colors.black.withValues(alpha: 0.01),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: c.border),
+          ),
+          child: Column(
+            children: [
+              _pnlRow(c, "Chiffre d'affaires", ref.fmt(kpi.totalRevenue), isBold: true, color: c.textPrimary),
+              Divider(color: c.border, height: 1, indent: 16, endIndent: 16),
+              _pnlRow(c, "Coût des marchandises", "- ${ref.fmt(kpi.totalRevenue - kpi.totalProfit)}", color: c.rose),
+              Divider(color: c.border, height: 1),
+              _pnlRow(c, "Marge brute", ref.fmt(kpi.totalProfit), isBold: true, color: c.emerald),
+              Divider(color: c.border, height: 1, indent: 16, endIndent: 16),
+              _pnlRow(c, "Dépenses opérationnelles", "- ${ref.fmt(kpi.totalExpenses)}", color: c.rose),
+              Divider(color: c.border, height: 1),
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                decoration: BoxDecoration(
+                  color: (isPositive ? c.emerald : c.rose).withValues(alpha: 0.05),
+                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
+                ),
+                child: _pnlRow(
+                  c,
+                  "RÉSULTAT NET",
+                  ref.fmt(netResult),
+                  isBold: true,
+                  isLarge: true,
+                  color: isPositive ? c.emerald : c.rose,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _pnlRow(DashColors c, String label, String value, {bool isBold = false, bool isLarge = false, Color? color}) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: isLarge ? 16 : 12, horizontal: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: isLarge ? 13 : 12,
+              fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
+              color: isBold ? c.textPrimary : c.textSecondary,
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: isLarge ? 18 : 14,
+              fontWeight: isBold ? FontWeight.w800 : FontWeight.w600,
+              color: color ?? c.textPrimary,
+              letterSpacing: -0.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // INDICATEURS DE PERFORMANCE — SectionCard + MetricRow style
+  // ═══════════════════════════════════════════════════════════════════════════════
+  Widget _buildMetricsCard(DashColors c, ReportKPIs kpi, DateTimeRange range) {
+    final days = range.duration.inDays > 0 ? range.duration.inDays : 1;
+    return SectionCard(
+      title: 'Indicateurs de performance',
+      subtitle: 'Métriques clés',
+      child: Column(
+        children: [
+          _metricTile(c, "Marge brute", "${kpi.marginPercentage.toStringAsFixed(1)}%",
+              FluentIcons.arrow_trending_lines_24_regular,
+              kpi.marginPercentage > 30 ? c.emerald : (kpi.marginPercentage > 15 ? c.amber : c.rose)),
+          _metricTile(c, "Panier moyen",
+              kpi.salesCount > 0 ? ref.fmt(kpi.totalRevenue / kpi.salesCount) : "–",
+              FluentIcons.cart_24_regular, c.blue),
+          _metricTile(c, "Ventes / jour",
+              DateFormatter.formatNumberValue(kpi.salesCount / days, decimalDigits: 1),
+              FluentIcons.clock_24_regular, c.violet),
+          _metricTile(c, "CA / jour", ref.fmt(kpi.totalRevenue / days),
+              FluentIcons.calendar_24_regular, c.amber),
+          _metricTile(c, "Ratio dépenses/CA",
+              kpi.totalRevenue > 0 ? "${(kpi.totalExpenses / kpi.totalRevenue * 100).toStringAsFixed(1)}%" : "–",
+              FluentIcons.arrow_trending_down_24_regular, c.rose),
+        ],
+      ),
+    );
+  }
+
+  Widget _metricTile(DashColors c, String label, String value, IconData icon, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: color, size: 14),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(color: c.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(color: c.textPrimary, fontWeight: FontWeight.w700, fontSize: 14),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // EXPORT & SHARE — Logique inchangée
+  // ═══════════════════════════════════════════════════════════════════════════════
 
   Future<void> _confirmZReport(BuildContext context) async {
     final now = DateTime.now();
@@ -594,7 +846,18 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       final topProducts = await ref.read(topProductsProvider(range).future);
       final db = await ref.read(databaseServiceProvider).database;
 
-      await ExcelExportService.exportToExcel(range: range, kpis: kpis, topProducts: topProducts, db: db);
+      final userSales = await ref.read(userSalesSummaryProvider(range).future);
+      final settings = ref.read(shopSettingsProvider).value;
+      
+      await ExcelExportService.exportToExcel(
+        range: range,
+        kpis: kpis,
+        topProducts: topProducts,
+        userSales: userSales,
+        shopName: settings?.name ?? "Mon Commerce",
+        currency: settings?.currency ?? "F",
+        db: db,
+      );
       if (!context.mounted) return;
       _showToast(context, "✅ Excel exporté dans vos téléchargements", isError: false);
     } catch (e) {
@@ -666,68 +929,53 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   }
 
   Future<void> _showShareOptions(BuildContext context) async {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final c = DashColors.of(context);
 
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => GlassContainer(
+      builder: (ctx) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        color: (isDark ? Theme.of(context).colorScheme.surface : Colors.white).withValues(alpha: 0.95),
+        decoration: BoxDecoration(
+          color: c.surface.withValues(alpha: 0.98),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          border: Border.all(color: c.border),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
               width: 40, height: 4,
-              decoration: BoxDecoration(color: Colors.grey.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2)),
+              decoration: BoxDecoration(color: c.textMuted.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2)),
             ),
             const SizedBox(height: 24),
             Text(
-              "Partager le rapport".toUpperCase(),
-              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 1.5, color: Colors.grey),
+              "PARTAGER LE RAPPORT",
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11, letterSpacing: 1.5, color: c.textMuted),
             ),
             const SizedBox(height: 24),
             Row(
               children: [
-                _buildShareCard(
-                  context,
-                  label: "PDF (A4)",
-                  sub: "Impression officielle",
-                  icon: FluentIcons.document_pdf_24_regular,
-                  color: Colors.red,
-                  onTap: () {
+                Expanded(
+                  child: _shareOption(c, "PDF (A4)", "Impression officielle", FluentIcons.document_pdf_24_regular, c.rose, () {
                     Navigator.pop(ctx);
                     _shareReport(context, isPdf: true);
-                  },
+                  }),
                 ),
                 const SizedBox(width: 12),
-                _buildShareCard(
-                  context,
-                  label: "EXCEL",
-                  sub: "Analyse détaillée",
-                  icon: FluentIcons.table_24_regular,
-                  color: Colors.green,
-                  onTap: () {
+                Expanded(
+                  child: _shareOption(c, "EXCEL", "Analyse détaillée", FluentIcons.table_24_regular, c.emerald, () {
                     Navigator.pop(ctx);
                     _shareReport(context, isPdf: false);
-                  },
+                  }),
                 ),
               ],
             ),
             const SizedBox(height: 12),
-            _buildShareCard(
-              context,
-              label: "ENVOYER PAR EMAIL",
-              sub: "Expédition directe au format combiné",
-              icon: FluentIcons.mail_24_regular,
-              color: Colors.indigo,
-              isFullWidth: true,
-              onTap: () {
-                Navigator.pop(ctx);
-                _showEmailRecipientDialog(context);
-              },
-            ),
+            _shareOption(c, "ENVOYER PAR EMAIL", "Expédition directe au format combiné", FluentIcons.mail_24_regular, c.violet, () {
+              Navigator.pop(ctx);
+              _showEmailRecipientDialog(context);
+            }),
             const SizedBox(height: 32),
           ],
         ),
@@ -735,27 +983,19 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     );
   }
 
-  Widget _buildShareCard(BuildContext context, {
-    required String label,
-    required String sub,
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-    bool isFullWidth = false,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final content = InkWell(
+  Widget _shareOption(DashColors c, String label, String sub, IconData icon, Color color, VoidCallback onTap) {
+    return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: isDark ? Theme.of(context).colorScheme.surface : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE5E7EB), width: 1.5),
+          color: c.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: c.border),
         ),
         child: Column(
-          crossAxisAlignment: isFullWidth ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Container(
               padding: const EdgeInsets.all(12),
@@ -763,18 +1003,16 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                 color: color.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: color, size: 28),
+              child: Icon(icon, color: color, size: 24),
             ),
-            const SizedBox(height: 20),
-            Text(label, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: isDark ? Colors.white : Colors.black, letterSpacing: 0.5)),
-            const SizedBox(height: 6),
-            Text(sub, style: TextStyle(fontSize: 12, color: isDark ? Colors.grey.shade500 : Colors.grey.shade600)),
+            const SizedBox(height: 14),
+            Text(label, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: c.textPrimary, letterSpacing: 0.5)),
+            const SizedBox(height: 4),
+            Text(sub, style: TextStyle(fontSize: 11, color: c.textSecondary), textAlign: TextAlign.center),
           ],
         ),
       ),
     );
-
-    return isFullWidth ? SizedBox(width: double.infinity, child: content) : Expanded(child: content);
   }
 
   Future<void> _showEmailRecipientDialog(BuildContext context) async {
@@ -854,6 +1092,9 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         range: range,
         kpis: kpis,
         topProducts: topProducts,
+        userSales: userSales,
+        shopName: settings?.name ?? "Mon Commerce",
+        currency: settings?.currency ?? "F",
         db: db,
       );
 
@@ -904,10 +1145,14 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         );
       } else {
         final db = await ref.read(databaseServiceProvider).database;
+        final settings = ref.read(shopSettingsProvider).value;
         filePath = await ExcelExportService.exportToExcel(
           range: range,
           kpis: kpis,
           topProducts: topProducts,
+          userSales: userSales,
+          shopName: settings?.name ?? "Mon Commerce",
+          currency: settings?.currency ?? "F",
           db: db,
         );
       }
@@ -930,144 +1175,6 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         backgroundColor: isError ? Colors.red : Colors.green.shade700,
         behavior: SnackBarBehavior.floating,
       ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helper Widgets
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _CardContainer extends StatelessWidget {
-  final Widget child;
-  final bool isDark;
-  const _CardContainer({required this.child, required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: isDark ? Theme.of(context).colorScheme.surface : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.grey.shade200, width: 1),
-      ),
-      child: child,
-    );
-  }
-}
-
-class _PremiumKpiTile extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-  final bool isDark;
-  
-  const _PremiumKpiTile({required this.icon, required this.label, required this.value, required this.color, required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      decoration: BoxDecoration(
-        color: isDark ? Theme.of(context).colorScheme.surface : Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.grey.shade200, width: 1),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: color.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(8)),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  label.toUpperCase(),
-                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.5, color: isDark ? Colors.grey.shade500 : Colors.grey.shade600),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 16, 
-                    fontWeight: FontWeight.w900, 
-                    color: isDark ? Colors.white : const Color(0xFF111827),
-                    letterSpacing: -0.5,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PnlRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final bool isBold;
-  final bool isNeg;
-  final bool isLarge;
-  final Color? color;
-  final bool isDark;
-
-  const _PnlRow({required this.label, required this.value, this.isBold = false, this.isNeg = false, this.isLarge = false, this.color, required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: isLarge ? 16 : 12, horizontal: 16),
-      child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        Text(label, style: TextStyle(fontSize: isLarge ? 13 : 12, fontWeight: isBold ? FontWeight.w700 : FontWeight.w500, color: isBold ? (isDark ? Colors.white : Colors.black87) : (isDark ? Colors.grey.shade400 : Colors.grey.shade600))),
-        Text(isNeg ? "- $value" : value, style: TextStyle(
-          fontSize: isLarge ? 18 : 14,
-          fontWeight: isBold ? FontWeight.w800 : FontWeight.w600,
-          color: color ?? (isNeg ? const Color(0xFFEF4444) : (isDark ? Colors.white : Colors.black)),
-          letterSpacing: -0.5,
-        )),
-      ]),
-    );
-  }
-}
-
-class _MetricRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color color;
-  final bool isDark;
-
-  const _MetricRow({required this.label, required this.value, required this.icon, required this.color, required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: isDark ? Theme.of(context).colorScheme.surface : Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.grey.shade200, width: 1),
-      ),
-      child: Row(children: [
-        Icon(icon, size: 16, color: color),
-        const SizedBox(width: 12),
-        Expanded(child: Text(label, style: TextStyle(fontSize: 12, color: isDark ? Colors.grey.shade400 : Colors.grey.shade700, fontWeight: FontWeight.w600))),
-        Text(value, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, letterSpacing: -0.5, color: color)),
-      ]),
     );
   }
 }

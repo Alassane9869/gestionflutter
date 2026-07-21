@@ -36,6 +36,7 @@ class ContractFormDialog extends ConsumerStatefulWidget {
 class _ContractFormDialogState extends ConsumerState<ContractFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late ContractType _contractType;
+  late ContractStatus _contractStatus;
   late DateTime _startDate;
   DateTime? _endDate;
   late TextEditingController _positionCtrl;
@@ -53,14 +54,15 @@ class _ContractFormDialogState extends ConsumerState<ContractFormDialog> {
     super.initState();
     final c = widget.contract;
     _contractType = c?.contractType ?? ContractType.cdi;
+    _contractStatus = c?.status ?? ContractStatus.active;
     _startDate = c?.startDate ?? DateTime.now();
     _endDate = c?.endDate;
     _selectedUserId = widget.userId ?? c?.userId;
     _positionCtrl = TextEditingController(text: c?.position);
     _departmentCtrl = TextEditingController(text: c?.department);
-    _baseSalaryCtrl = TextEditingController(text: c?.baseSalary.toString() ?? "0");
-    _transportAllowanceCtrl = TextEditingController(text: c?.transportAllowance.toString() ?? "0");
-    _mealAllowanceCtrl = TextEditingController(text: c?.mealAllowance.toString() ?? "0");
+    _baseSalaryCtrl = TextEditingController(text: c?.baseSalary.toInt().toString() ?? "");
+    _transportAllowanceCtrl = TextEditingController(text: c?.transportAllowance.toInt().toString() ?? "");
+    _mealAllowanceCtrl = TextEditingController(text: c?.mealAllowance.toInt().toString() ?? "");
     _schoolNameCtrl = TextEditingController(text: c?.schoolName);
     _supervisorIdCtrl = TextEditingController(text: c?.supervisorId);
     _notesCtrl = TextEditingController(text: c?.notes);
@@ -86,10 +88,28 @@ class _ContractFormDialogState extends ConsumerState<ContractFormDialog> {
         department: _departmentCtrl.text.trim(),
         schoolName: _contractType == ContractType.stage ? _schoolNameCtrl.text.trim() : null,
         supervisorId: _contractType == ContractType.stage ? _supervisorIdCtrl.text.trim() : null,
-        status: widget.contract?.status ?? ContractStatus.active,
+        status: _contractStatus,
         notes: _notesCtrl.text.trim(),
         createdAt: widget.contract?.createdAt ?? DateTime.now(),
       );
+      final existingContracts = ref.read(allContractsProvider).value ?? [];
+      
+      // Règle de gestion : Un employé ne peut pas avoir deux contrats actifs en même temps
+      final hasActiveContract = existingContracts.any(
+        (c) => c.userId == _selectedUserId && 
+               c.status == ContractStatus.active && 
+               c.id != widget.contract?.id
+      );
+
+      if (hasActiveContract && _contractStatus == ContractStatus.active) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Cet employé a déjà un contrat actif. Clôturez-le avant d'en créer un nouveau."),
+            backgroundColor: Colors.red,
+          )
+        );
+        return;
+      }
 
       try {
         await ref.read(hrRepositoryProvider).saveContract(contract);
@@ -118,9 +138,9 @@ class _ContractFormDialogState extends ConsumerState<ContractFormDialog> {
 
     return EnterpriseWidgets.buildPremiumDialog(
       context,
-      title: widget.contract == null ? "Nouveau Contrat" : "Modifier Contrat",
+      title: widget.contract == null ? "Nouveau Contrat" : "Détails du Contrat",
       icon: FluentIcons.document_add_24_regular,
-      width: 600,
+      width: 700,
       child: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -140,76 +160,119 @@ class _ContractFormDialogState extends ConsumerState<ContractFormDialog> {
                   loading: () => const LinearProgressIndicator(),
                   error: (e, _) => Text("Erreur users: $e"),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 24),
               ],
               
+              _buildSectionHeader("Paramètres du Contrat", FluentIcons.settings_24_regular, c),
               Row(
                 children: [
-                   Expanded(
-                     child: EnterpriseWidgets.buildPremiumDropdown<ContractType>(
-                       label: "Type de contrat",
-                       value: _contractType,
-                       icon: FluentIcons.document_text_24_regular,
-                       items: ContractType.values,
-                       itemLabel: (t) => t.label,
-                       onChanged: (v) => setState(() => _contractType = v!),
-                     ),
-                   ),
-                   const SizedBox(width: 16),
-                   Expanded(
-                     child: EnterpriseWidgets.buildPremiumTextField(
-                       context,
-                       ctrl: _departmentCtrl,
-                       label: "Département",
-                       hint: "RH, Vente, IT...",
-                       icon: FluentIcons.organization_24_regular,
-                     ),
-                   ),
+                  if (widget.contract != null) ...[
+                    Expanded(
+                      child: EnterpriseWidgets.buildPremiumDropdown<ContractStatus>(
+                        label: "Statut du contrat",
+                        value: _contractStatus,
+                        icon: FluentIcons.presence_available_24_regular,
+                        items: ContractStatus.values,
+                        itemLabel: (s) => s == ContractStatus.active ? "Actif" : s == ContractStatus.terminated ? "Clôturé" : "Expiré",
+                        onChanged: (v) => setState(() => _contractStatus = v!),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                  ],
+                  Expanded(
+                    child: EnterpriseWidgets.buildPremiumDropdown<ContractType>(
+                      label: "Type de contrat",
+                      value: _contractType,
+                      icon: FluentIcons.document_text_24_regular,
+                      items: ContractType.values,
+                      itemLabel: (t) => t.label,
+                      onChanged: (v) => setState(() => _contractType = v!),
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
 
-              EnterpriseWidgets.buildPremiumTextField(
-                context,
-                ctrl: _positionCtrl,
-                label: "Poste / Titre de fonction",
-                hint: "ex: Directeur Commercial",
-                icon: FluentIcons.briefcase_24_regular,
-                validator: (v) => v!.isEmpty ? "Titre requis" : null,
-              ),
-              const SizedBox(height: 16),
-
+              _buildSectionHeader("Affectation", FluentIcons.briefcase_24_regular, c),
               Row(
                 children: [
                   Expanded(
-                    child: _buildDatePickerRow("Début", _startDate, (d) => setState(() => _startDate = d), c),
+                    flex: 3,
+                    child: EnterpriseWidgets.buildPremiumTextField(
+                      context,
+                      ctrl: _positionCtrl,
+                      label: "Poste / Titre de fonction",
+                      hint: "ex: Directeur Commercial",
+                      icon: FluentIcons.person_board_24_regular,
+                      validator: (v) => v!.isEmpty ? "Requis" : null,
+                    ),
                   ),
                   const SizedBox(width: 16),
-                  if (_contractType != ContractType.cdi)
-                    Expanded(
-                      child: _buildDatePickerRow("Fin (approx.)", _endDate ?? DateTime.now().add(const Duration(days: 365)), (d) => setState(() => _endDate = d), c),
+                  Expanded(
+                    flex: 2,
+                    child: EnterpriseWidgets.buildPremiumTextField(
+                      context,
+                      ctrl: _departmentCtrl,
+                      label: "Département",
+                      hint: "RH, Vente...",
+                      icon: FluentIcons.organization_24_regular,
                     ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              _buildSectionHeader("Durée", FluentIcons.calendar_clock_24_regular, c),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: _buildDatePickerRow("Date de début", _startDate, (d) => setState(() => _startDate = d), c),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _contractType != ContractType.cdi
+                        ? _buildDatePickerRow("Date de fin", _endDate ?? DateTime.now().add(const Duration(days: 365)), (d) => setState(() => _endDate = d), c)
+                        : Container(
+                            height: 52,
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            decoration: BoxDecoration(color: c.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: c.border)),
+                            child: Row(
+                              children: [
+                                Icon(Icons.all_inclusive_rounded, color: c.textSecondary, size: 20),
+                                const SizedBox(width: 12),
+                                Text("Durée Indéterminée", style: TextStyle(color: c.textSecondary, fontWeight: FontWeight.bold, fontSize: 13)),
+                              ],
+                            ),
+                          ),
+                  ),
                 ],
               ),
               const SizedBox(height: 24),
 
               // Salary Section Card
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: c.surface,
+                  color: c.blue.withValues(alpha: 0.03),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: c.border),
+                  border: Border.all(color: c.blue.withValues(alpha: 0.2)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("PACK RÉMUNÉRATION MENSUEL", style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w800, color: c.blue)),
-                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Icon(FluentIcons.money_calculator_24_filled, color: c.blue, size: 20),
+                        const SizedBox(width: 8),
+                        Text("PACK RÉMUNÉRATION", style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w900, color: c.blue, letterSpacing: 0.5)),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
                     EnterpriseWidgets.buildPremiumTextField(
                       context,
                       ctrl: _baseSalaryCtrl,
-                      label: "Salaire de base ($currency)",
+                      label: "Salaire de base mensuel ($currency)",
                       icon: FluentIcons.money_24_regular,
                       keyboardType: TextInputType.number,
                       onChanged: (_) => setState(() {}),
@@ -240,14 +303,31 @@ class _ContractFormDialogState extends ConsumerState<ContractFormDialog> {
                         ),
                       ],
                     ),
-                    const Divider(height: 32),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      child: Divider(height: 1),
+                    ),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text("Coût Annuel (Mensuel x 12 mois)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                        Text(
-                          DateFormatter.formatCurrency(annualCost, currency),
-                          style: TextStyle(fontWeight: FontWeight.w900, color: c.blue, fontSize: 16),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text("Coût Annuel Total", style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                            Text("Base + Indemnités × 12 mois", style: TextStyle(fontSize: 11, color: c.textSecondary)),
+                          ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: c.blue,
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: [BoxShadow(color: c.blue.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 4))],
+                          ),
+                          child: Text(
+                            DateFormatter.formatCurrency(annualCost, currency),
+                            style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.white, fontSize: 16),
+                          ),
                         ),
                       ],
                     ),
@@ -256,20 +336,22 @@ class _ContractFormDialogState extends ConsumerState<ContractFormDialog> {
               ),
 
               if (_contractType == ContractType.stage) ...[
-                const SizedBox(height: 16),
+                const SizedBox(height: 24),
+                _buildSectionHeader("Informations Stage", FluentIcons.hat_graduation_24_regular, c),
                 EnterpriseWidgets.buildPremiumTextField(
                   context,
                   ctrl: _schoolNameCtrl,
                   label: "Établissement / École",
-                  icon: FluentIcons.hat_graduation_24_regular,
+                  icon: FluentIcons.building_bank_24_regular,
                 ),
               ],
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
+              _buildSectionHeader("Autres", FluentIcons.note_24_regular, c),
               EnterpriseWidgets.buildPremiumTextField(
                 context,
                 ctrl: _notesCtrl,
                 label: "Notes additionnelles",
-                icon: FluentIcons.note_24_regular,
+                icon: FluentIcons.text_description_24_regular,
                 maxLines: 2,
               ),
             ],
@@ -288,6 +370,19 @@ class _ContractFormDialogState extends ConsumerState<ContractFormDialog> {
           child: const Text("Enregistrer Contrat"),
         ),
       ],
+    );
+  }
+
+  Widget _buildSectionHeader(String title, IconData icon, DashColors c) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: c.blue),
+          const SizedBox(width: 8),
+          Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: c.blue)),
+        ],
+      ),
     );
   }
 

@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../../../../core/widgets/address_autocomplete_field.dart';
 import '../../../../core/widgets/premium_settings_widgets.dart';
 import '../../../inventory/presentation/widgets/dashboard_widgets.dart';
 
@@ -128,15 +129,11 @@ class GeneralSettingsSection extends StatelessWidget {
                 onChanged: onSaveDebounced,
               ),
               const SizedBox(height: 14),
-              PremiumSettingsWidgets.buildCompactField(
-                context,
-                label: "Siège Social & Adresse",
-                hint: "Bamako, Mali - Rue 123, Porte 45",
-                icon: FluentIcons.location_20_regular,
+              AddressAutocompleteField(
                 controller: addressCtrl,
-                color: c.rose,
-                maxLines: 2,
-                onChanged: onSaveDebounced,
+                label: "Siège Social & Adresse",
+                hint: "Ex: Bamako, Mali - Rue 123, Porte 45",
+                onChanged: (v) => onSaveDebounced(),
               ),
             ],
           ),

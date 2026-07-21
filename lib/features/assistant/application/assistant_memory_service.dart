@@ -94,10 +94,24 @@ class AssistantMemoryNotifier extends Notifier<List<MemoryFact>> {
     final cleanedFact = fact.trim();
     if (cleanedFact.isEmpty) return;
 
-    // Protection politique de sécurité basique (ex: masquer/rejeter les mots de passe explicites)
+    // Protection politique de sécurité étendue
     final lower = cleanedFact.toLowerCase();
-    if (lower.contains('mot de passe') || lower.contains('password') || lower.contains('carte de crédit') || lower.contains('credit card')) {
+    // 1. Mots-clés interdits (données d'identification & bancaires)
+    if (lower.contains('mot de passe') || lower.contains('password') ||
+        lower.contains('carte de crédit') || lower.contains('credit card') ||
+        lower.contains('clé api') || lower.contains('api key') ||
+        lower.contains('token') || lower.contains('secret') ||
+        lower.contains('cvv') || lower.contains('pin')) {
       throw Exception("Politique de sécurité : Il est interdit de stocker des informations d'identification ou bancaires dans la mémoire du Copilot.");
+    }
+    // 2. Numéros de carte bancaire (13-19 chiffres consécutifs)
+    if (RegExp(r'\b\d{13,19}\b').hasMatch(cleanedFact)) {
+      throw Exception("Politique de sécurité : Numéro de carte bancaire détecté. Stockage refusé.");
+    }
+    // 3. Adresses email explicites (x@x.x)
+    if (RegExp(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}').hasMatch(cleanedFact) &&
+        (lower.contains('passe') || lower.contains('identifiant') || lower.contains('login'))) {
+      throw Exception("Politique de sécurité : Information de connexion (email + identifiant) refusée.");
     }
 
     final newFact = MemoryFact(
@@ -115,8 +129,17 @@ class AssistantMemoryNotifier extends Notifier<List<MemoryFact>> {
     if (cleanedFact.isEmpty) return;
 
     final lower = cleanedFact.toLowerCase();
-    if (lower.contains('mot de passe') || lower.contains('password') || lower.contains('carte de crédit') || lower.contains('credit card')) {
+    // 1. Mots-clés interdits
+    if (lower.contains('mot de passe') || lower.contains('password') ||
+        lower.contains('carte de crédit') || lower.contains('credit card') ||
+        lower.contains('clé api') || lower.contains('api key') ||
+        lower.contains('token') || lower.contains('secret') ||
+        lower.contains('cvv') || lower.contains('pin')) {
       throw Exception("Politique de sécurité : Il est interdit de stocker des informations d'identification ou bancaires dans la mémoire du Copilot.");
+    }
+    // 2. Numéros de carte bancaire
+    if (RegExp(r'\b\d{13,19}\b').hasMatch(cleanedFact)) {
+      throw Exception("Politique de sécurité : Numéro de carte bancaire détecté. Stockage refusé.");
     }
 
     state = state.map((m) {

@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PALETTE DYNAMIQUE — S'adapte automatiquement au thème (clair/sombre)
@@ -468,7 +469,7 @@ class DashboardPieChart extends StatelessWidget {
   Widget build(BuildContext context) {
     if (data.isEmpty) return const SizedBox.shrink();
 
-    final List<Color> colors = [c.blue, c.emerald, c.violet, c.amber, c.rose, c.cyan];
+    final List<Color> colors = [c.primary, c.amber, c.primary.withValues(alpha: 0.7), c.amber.withValues(alpha: 0.7), c.textSecondary, c.borderHover];
     final totalQty = data.fold<double>(0, (sum, e) => sum + ((e['total_qty'] as num?)?.toDouble() ?? 0.0));
 
     return SizedBox(
@@ -519,6 +520,278 @@ class DashboardPieChart extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// NEW ULTRA PRO CHARTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class DashboardRadarChart extends StatelessWidget {
+  final DashColors c;
+  final double salesScore;
+  final double profitScore;
+  final double stockScore;
+  final double clientScore;
+
+  const DashboardRadarChart({
+    super.key,
+    required this.c,
+    this.salesScore = 0.8,
+    this.profitScore = 0.6,
+    this.stockScore = 0.9,
+    this.clientScore = 0.7,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: RadarChart(
+        RadarChartData(
+          radarBackgroundColor: Colors.transparent,
+          borderData: FlBorderData(show: false),
+          radarBorderData: const BorderSide(color: Colors.transparent),
+          titlePositionPercentageOffset: 0.15,
+          tickCount: 3,
+          ticksTextStyle: const TextStyle(color: Colors.transparent, fontSize: 10),
+          tickBorderData: BorderSide(color: c.textSecondary.withValues(alpha: 0.2)),
+          gridBorderData: BorderSide(color: c.textSecondary.withValues(alpha: 0.2), width: 1.5),
+          radarShape: RadarShape.polygon,
+          getTitle: (index, angle) {
+            switch (index) {
+              case 0: return RadarChartTitle(text: 'Ventes', angle: angle, positionPercentageOffset: 0.1);
+              case 1: return RadarChartTitle(text: 'Marge', angle: angle, positionPercentageOffset: 0.1);
+              case 2: return RadarChartTitle(text: 'Stock', angle: angle, positionPercentageOffset: 0.1);
+              case 3: return RadarChartTitle(text: 'Clients', angle: angle, positionPercentageOffset: 0.1);
+              default: return const RadarChartTitle(text: '');
+            }
+          },
+          dataSets: [
+            RadarDataSet(
+              fillColor: c.primary.withValues(alpha: 0.4),
+              borderColor: c.primary,
+              entryRadius: 3,
+              dataEntries: [
+                RadarEntry(value: salesScore * 100),
+                RadarEntry(value: profitScore * 100),
+                RadarEntry(value: stockScore * 100),
+                RadarEntry(value: clientScore * 100),
+              ],
+              borderWidth: 2,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class DashboardProfitMarginGauge extends StatelessWidget {
+  final DashColors c;
+  final double profitMargin;
+
+  const DashboardProfitMarginGauge({super.key, required this.c, required this.profitMargin});
+
+  @override
+  Widget build(BuildContext context) {
+    final marginPct = (profitMargin * 100).clamp(0.0, 100.0);
+    final color = marginPct > 20 ? c.primary : (marginPct > 10 ? c.amber : c.rose);
+
+    return Center(
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          SizedBox(
+            width: 140,
+            height: 140,
+            child: CircularProgressIndicator(
+              value: 1.0,
+              strokeWidth: 12,
+              color: c.textSecondary.withValues(alpha: 0.1),
+            ),
+          ),
+          SizedBox(
+            width: 140,
+            height: 140,
+            child: TweenAnimationBuilder<double>(
+              tween: Tween<double>(begin: 0, end: profitMargin.clamp(0.0, 1.0)),
+              duration: const Duration(seconds: 2),
+              curve: Curves.easeOutCubic,
+              builder: (context, value, child) {
+                return CircularProgressIndicator(
+                  value: value,
+                  strokeWidth: 12,
+                  backgroundColor: Colors.transparent,
+                  color: color,
+                  strokeCap: StrokeCap.round,
+                );
+              },
+            ),
+          ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                "${marginPct.toStringAsFixed(1)}%",
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: c.textPrimary),
+              ),
+              Text(
+                "Marge nette",
+                style: TextStyle(fontSize: 12, color: c.textSecondary),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class DashboardStockHealthChart extends StatelessWidget {
+  final DashColors c;
+  final int inStock;
+  final int lowStock;
+  final int outOfStock;
+
+  const DashboardStockHealthChart({
+    super.key,
+    required this.c,
+    required this.inStock,
+    required this.lowStock,
+    required this.outOfStock,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final total = inStock + lowStock + outOfStock;
+    if (total == 0) return Center(child: Text("Aucune donnée", style: TextStyle(color: c.textSecondary)));
+
+    final pIn = inStock / total;
+    final pLow = lowStock / total;
+    final pOut = outOfStock / total;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            spacing: 8.0,
+            runSpacing: 4.0,
+            children: [
+              _buildLegend("En stock (${(pIn*100).toStringAsFixed(0)}%)", c.emerald),
+              _buildLegend("Faible (${(pLow*100).toStringAsFixed(0)}%)", c.amber),
+              _buildLegend("Rupture (${(pOut*100).toStringAsFixed(0)}%)", c.rose),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: SizedBox(
+              height: 24,
+              child: Row(
+                children: [
+                  if (pIn > 0) Expanded(flex: (pIn * 100).toInt(), child: Container(color: c.emerald)),
+                  if (pLow > 0) Expanded(flex: (pLow * 100).toInt(), child: Container(color: c.amber)),
+                  if (pOut > 0) Expanded(flex: (pOut * 100).toInt(), child: Container(color: c.rose)),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text("$total Articles au total", style: TextStyle(color: c.textSecondary, fontWeight: FontWeight.w600)),
+              Icon(FluentIcons.box_24_regular, color: c.textSecondary, size: 20),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLegend(String label, Color color) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 6),
+        Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+      ],
+    );
+  }
+}
+
+class DashboardExpenseVsIncomeChart extends StatelessWidget {
+  final DashColors c;
+  final double income;
+  final double expense;
+
+  const DashboardExpenseVsIncomeChart({super.key, required this.c, required this.income, required this.expense});
+
+  @override
+  Widget build(BuildContext context) {
+    final maxVal = (income > expense ? income : expense) * 1.2;
+    if (maxVal == 0) return Center(child: Text("Aucune donnée", style: TextStyle(color: c.textSecondary)));
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 24, left: 16, right: 24, bottom: 10),
+      child: BarChart(
+        BarChartData(
+          alignment: BarChartAlignment.spaceAround,
+          maxY: maxVal,
+          barTouchData: BarTouchData(enabled: false),
+          titlesData: FlTitlesData(
+            show: true,
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                getTitlesWidget: (value, meta) {
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(value == 0 ? "Revenus" : "Dépenses", style: TextStyle(color: c.textSecondary, fontSize: 11, fontWeight: FontWeight.w600)),
+                  );
+                },
+                reservedSize: 28,
+              ),
+            ),
+            leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          ),
+          borderData: FlBorderData(show: false),
+          gridData: FlGridData(show: false),
+          barGroups: [
+            BarChartGroupData(
+              x: 0,
+              barRods: [
+                BarChartRodData(
+                  toY: income,
+                  color: c.primary,
+                  width: 32,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+                ),
+              ],
+            ),
+            BarChartGroupData(
+              x: 1,
+              barRods: [
+                BarChartRodData(
+                  toY: expense,
+                  color: c.amber,
+                  width: 32,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

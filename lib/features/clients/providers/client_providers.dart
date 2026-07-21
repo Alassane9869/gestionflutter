@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:danaya_plus/core/database/database_service.dart';
 import 'package:danaya_plus/features/clients/domain/models/client.dart';
+import 'package:danaya_plus/features/clients/providers/debt_reminder_provider.dart';
 import 'package:danaya_plus/features/finance/providers/treasury_provider.dart';
 import 'package:danaya_plus/features/finance/providers/session_providers.dart';
 import 'package:danaya_plus/core/network/client_sync_service.dart';
@@ -106,6 +107,9 @@ class ClientListNotifier extends AsyncNotifier<List<Client>> {
         'UPDATE clients SET credit = credit - ? WHERE id = ?',
         [amount, clientId],
       );
+
+      // HEAL: Sync sales table with client payment history
+      await healClientSalesDebt(clientId, txn);
 
       // 2. Enregistrer la transaction dans la trésorerie
       final txId = const Uuid().v4();

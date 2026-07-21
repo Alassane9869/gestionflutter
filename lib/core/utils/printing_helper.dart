@@ -66,4 +66,30 @@ class PrintingHelper {
       name: jobName,
     );
   }
+
+  static Future<void> printBytesWithFallback({
+    required Uint8List bytes,
+    required String? targetPrinterName,
+    required bool directPrint,
+    required String jobName,
+  }) async {
+    final printer = await findPrinter(targetPrinterName);
+
+    if (directPrint && printer != null) {
+      try {
+        await Printing.directPrintPdf(
+          printer: printer,
+          onLayout: (format) async => bytes,
+        );
+        return;
+      } catch (e) {
+        debugPrint("❌ Direct print failed: $e. Falling back to dialog.");
+      }
+    }
+
+    await Printing.layoutPdf(
+      name: jobName,
+      onLayout: (format) async => bytes,
+    );
+  }
 }

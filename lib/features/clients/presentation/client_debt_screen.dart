@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:danaya_plus/features/clients/domain/models/client.dart';
 import 'package:danaya_plus/features/clients/domain/models/client_payment.dart';
 import 'package:danaya_plus/features/clients/providers/client_providers.dart';
@@ -16,6 +18,8 @@ import 'package:danaya_plus/features/inventory/presentation/dashboard_screen.dar
 import 'package:danaya_plus/core/widgets/access_denied_screen.dart';
 import 'package:danaya_plus/core/widgets/enterprise_widgets.dart';
 import 'package:danaya_plus/core/database/database_service.dart';
+import 'package:danaya_plus/features/settings/providers/shop_settings_provider.dart';
+import 'package:danaya_plus/core/services/whatsapp_service.dart';
 
 class ClientDebtScreen extends ConsumerStatefulWidget {
   const ClientDebtScreen({super.key});
@@ -62,8 +66,12 @@ class _ClientDebtScreenState extends ConsumerState<ClientDebtScreen> {
       backgroundColor: isDark ? const Color(0xFF050507) : const Color(0xFFF7F9FC),
       body: clientsAsync.when(
         data: (clients) {
-          final debtClients = clients.where((c) => c.credit > 0).toList();
-          final totalDebt = debtClients.fold(0.0, (sum, c) => sum + c.credit);
+          final totalDebt = clients.where((c) => c.credit > 0).fold(0.0, (sum, c) => sum + c.credit);
+          final debtClientsCount = clients.where((c) => c.credit > 0).length;
+
+          final filteredClients = _clientSearch.isEmpty 
+              ? clients.where((c) => c.credit > 0).toList()
+              : clients.where((c) => c.name.toLowerCase().contains(_clientSearch.toLowerCase())).toList();
 
           return Row(
             children: [
@@ -80,7 +88,7 @@ class _ClientDebtScreenState extends ConsumerState<ClientDebtScreen> {
                 ),
                 child: Column(
                   children: [
-                    _buildHeader(context, ref, totalDebt, debtClients.length),
+                    _buildHeader(context, ref, totalDebt, debtClientsCount),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
                       child: EnterpriseWidgets.buildPremiumTextField(
@@ -94,10 +102,9 @@ class _ClientDebtScreenState extends ConsumerState<ClientDebtScreen> {
                     const SizedBox(height: 8),
                     Expanded(
                       child: ListView.builder(
-                        itemCount: debtClients.where((c) => c.name.toLowerCase().contains(_clientSearch.toLowerCase())).length,
+                        itemCount: filteredClients.length,
                         itemBuilder: (context, index) {
-                          final filtered = debtClients.where((c) => c.name.toLowerCase().contains(_clientSearch.toLowerCase())).toList();
-                          final client = filtered[index];
+                          final client = filteredClients[index];
                           final isSelected = _selectedClient?.id == client.id;
                           return _ClientDebtTile(
                             client: client,
@@ -387,17 +394,145 @@ class _ClientDebtTile extends ConsumerWidget {
   }
 }
 
-class _ClientDebtDetail extends ConsumerWidget {
+class _ClientDebtDetail extends ConsumerStatefulWidget {
   final Client client;
 
   const _ClientDebtDetail({required this.client});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ClientDebtDetail> createState() => _ClientDebtDetailState();
+}
+
+class _ClientDebtDetailState extends ConsumerState<_ClientDebtDetail> {
+  bool _showAllCreditSales = false;
+
+  Future<void> _sendWhatsAppReminder(BuildContext context, Client client) async {
+    final phone = client.phone?.replaceAll(RegExp(r'\D'), '');
+    if (phone == null || phone.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Le client n'a pas de numéro de téléphone.")),
+        );
+      }
+      return;
+    }
+
+    final settings = ref.read(shopSettingsProvider).value;
+    final String shopName = settings?.name ?? "Danaya+";
+
+    final String message = "Bonjour ${client.name}, c'est l'établissement $shopName. "
+        "Nous vous contactons pour vous rappeler votre solde restant de ${ref.fmt(client.credit)}. "
+        "Merci de régulariser votre situation dès que possible. Bonne journée !";
+
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Envoyer le rappel WhatsApp", style: TextStyle(fontWeight: FontWeight.w800)),
+        content: const Text("Veuillez choisir la méthode d'envoi pour ce rappel de dette :"),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          OutlinedButton.icon(
+            icon: const Icon(FontAwesomeIcons.whatsapp, size: 16, color: Colors.green),
+            label: const Text("Application WhatsApp (Manuel)"),
+            onPressed: () => Navigator.pop(ctx, 'MANUAL'),
+          ),
+          const SizedBox(height: 8),
+          FilledButton.icon(
+            icon: const Icon(FluentIcons.cloud_24_regular, size: 16),
+            label: const Text("Envoi Silencieux (API Meta)"),
+            onPressed: () => Navigator.pop(ctx, 'API'),
+          ),
+        ],
+      ),
+    );
+
+    if (choice == null) return;
+
+    if (choice == 'MANUAL') {
+      final Uri whatsappUrl = Uri.parse("https://wa.me/$phone?text=${Uri.encodeComponent(message)}");
+
+      if (await canLaunchUrl(whatsappUrl)) {
+        await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Impossible d'ouvrir WhatsApp.")),
+          );
+        }
+      }
+    } else if (choice == 'API') {
+      final token = settings?.whatsappToken;
+      final phoneId = settings?.whatsappPhoneNumberId;
+
+      if (token == null || token.isEmpty || phoneId == null || phoneId.isEmpty) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Erreur : Les identifiants API WhatsApp ne sont pas configurés dans vos paramètres."),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      if (!context.mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+
+      final whatsappService = ref.read(whatsappServiceProvider);
+      final success = await whatsappService.sendMessageViaApi(
+        to: phone,
+        message: message,
+        phoneNumberId: phoneId,
+        accessToken: token,
+      );
+
+      if (!context.mounted) return;
+      Navigator.pop(context); // Close loading
+
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Rappel API envoyé avec succès !"), backgroundColor: Colors.green),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Erreur d'envoi API Meta WhatsApp."), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final client = widget.client;
     final paymentsAsync = ref.watch(clientPaymentsProvider(client.id));
+    final salesAsync = ref.watch(_showAllCreditSales
+        ? clientAllCreditSalesProvider(client.id)
+        : clientActiveDebtsProvider(client.id));
+    
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
+
+    final payments = paymentsAsync.value ?? [];
+    final sales = salesAsync.value ?? [];
+    
+    final totalPaid = payments.fold(0.0, (sum, p) => sum + p.amount);
+    final unpaidCount = sales.where((s) => (s.totalAmount - s.amountPaid) > 0).length;
+
+    int maxDelayDays = 0;
+    for (final s in sales) {
+      if (s.dueDate != null && (s.totalAmount - s.amountPaid) > 0) {
+        final diff = DateTime.now().difference(s.dueDate!).inDays;
+        if (diff > maxDelayDays) {
+          maxDelayDays = diff;
+        }
+      }
+    }
 
     return Column(
       children: [
@@ -436,6 +571,17 @@ class _ClientDebtDetail extends ConsumerWidget {
                   ],
                 ),
               ),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  side: BorderSide(color: isDark ? const Color(0xFF2D3039) : const Color(0xFFE5E7EB)),
+                ),
+                icon: const Icon(FontAwesomeIcons.whatsapp, color: Colors.green, size: 18),
+                label: const Text("RAPPEL WHATSAPP", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+                onPressed: () => _sendWhatsAppReminder(context, client),
+              ),
+              const SizedBox(width: 12),
               FilledButton.icon(
                 style: FilledButton.styleFrom(
                   backgroundColor: colorScheme.primary,
@@ -451,10 +597,50 @@ class _ClientDebtDetail extends ConsumerWidget {
           ),
         ),
 
+        // Financial Telemetry HUD row
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+          child: Row(
+            children: [
+              _buildMetricCard(
+                title: "SOLDE DE LA DETTE",
+                value: ref.fmt(client.credit),
+                icon: FluentIcons.money_off_24_regular,
+                color: theme.colorScheme.error,
+                isDark: isDark,
+              ),
+              const SizedBox(width: 16),
+              _buildMetricCard(
+                title: "TOTAL RECOUVREMENTS",
+                value: ref.fmt(totalPaid),
+                icon: FluentIcons.money_hand_24_regular,
+                color: Colors.green,
+                isDark: isDark,
+              ),
+              const SizedBox(width: 16),
+              _buildMetricCard(
+                title: "FACTURES IMPAYÉES",
+                value: "$unpaidCount en attente",
+                icon: FluentIcons.clipboard_text_edit_24_regular,
+                color: Colors.orange,
+                isDark: isDark,
+              ),
+              const SizedBox(width: 16),
+              _buildMetricCard(
+                title: "RETARD MAXIMAL",
+                value: maxDelayDays > 0 ? "$maxDelayDays jours" : "Aucun",
+                icon: FluentIcons.timer_24_regular,
+                color: maxDelayDays > 0 ? Colors.red : Colors.blue,
+                isDark: isDark,
+              ),
+            ],
+          ),
+        ),
+
         // Active Debts & History Area
         Expanded(
           child: Container(
-            padding: const EdgeInsets.all(40),
+            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 10),
             color: isDark ? const Color(0xFF050507) : const Color(0xFFF7F9FC),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -469,19 +655,45 @@ class _ClientDebtDetail extends ConsumerWidget {
                           Icon(FluentIcons.clipboard_text_edit_24_regular, 
                               size: 20, color: isDark ? Colors.grey.shade400 : Colors.grey.shade600),
                           const SizedBox(width: 8),
-                          Text(
-                            "FACTURES IMPAYÉES",
-                            style: theme.textTheme.labelLarge?.copyWith(
-                              letterSpacing: 1.2,
-                              fontWeight: FontWeight.w900,
-                              color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                          Expanded(
+                            child: Text(
+                              _showAllCreditSales ? "HISTORIQUE CRÉDITS" : "FACTURES IMPAYÉES DETTES",
+                              style: theme.textTheme.labelLarge?.copyWith(
+                                letterSpacing: 1.2,
+                                fontWeight: FontWeight.w900,
+                                color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
+                          ),
+                          TextButton.icon(
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            icon: Icon(
+                              _showAllCreditSales ? FluentIcons.checkbox_checked_24_regular : FluentIcons.checkbox_unchecked_24_regular,
+                              size: 16,
+                              color: colorScheme.primary,
+                            ),
+                            label: Text(
+                              "Afficher l'historique réglé",
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.primary,
+                              ),
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _showAllCreditSales = !_showAllCreditSales;
+                              });
+                            },
                           ),
                         ],
                       ),
                       const SizedBox(height: 24),
                       Expanded(
-                        child: ref.watch(clientActiveDebtsProvider(client.id)).when(
+                        child: salesAsync.when(
                           data: (sales) {
                             if (sales.isEmpty) {
                               return Center(
@@ -495,7 +707,9 @@ class _ClientDebtDetail extends ConsumerWidget {
                                     ),
                                     const SizedBox(height: 16),
                                     Text(
-                                      "Aucune dette en cours pour ce client.",
+                                      _showAllCreditSales 
+                                          ? "Aucune vente à crédit enregistrée."
+                                          : "Aucune dette en cours pour ce client.",
                                       style: TextStyle(
                                         color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
                                         fontWeight: FontWeight.bold,
@@ -514,7 +728,7 @@ class _ClientDebtDetail extends ConsumerWidget {
                             );
                           },
                           loading: () => const Center(child: CircularProgressIndicator()),
-                          error: (e, st) => Center(child: Text("Erreur: $e")),
+                          error: (e, st) => Center(child: Text("Erreur : $e")),
                         ),
                       ),
                     ],
@@ -532,7 +746,7 @@ class _ClientDebtDetail extends ConsumerWidget {
                               size: 20, color: isDark ? Colors.grey.shade400 : Colors.grey.shade600),
                           const SizedBox(width: 8),
                           Text(
-                            "HISTORIQUE DES PAIEMENTS",
+                            "HISTORIQUE DES REMBOURSEMENTS",
                             style: theme.textTheme.labelLarge?.copyWith(
                               letterSpacing: 1.2,
                               fontWeight: FontWeight.w900,
@@ -576,7 +790,7 @@ class _ClientDebtDetail extends ConsumerWidget {
                             );
                           },
                           loading: () => const Center(child: CircularProgressIndicator()),
-                          error: (e, st) => Center(child: Text("Erreur: $e")),
+                          error: (e, st) => Center(child: Text("Erreur : $e")),
                         ),
                       ),
                     ],
@@ -587,6 +801,72 @@ class _ClientDebtDetail extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildMetricCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+    required bool isDark,
+  }) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF0F1115) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade200,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: isDark ? Colors.black.withValues(alpha: 0.2) : Colors.grey.withValues(alpha: 0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.grey.shade500,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -643,7 +923,7 @@ class _ClientDebtDetail extends ConsumerWidget {
                 ),
                 onPressed: () async {
                   final amount = double.tryParse(amountCtrl.text) ?? 0.0;
-                  if (amount <= 0 || amount > client.credit) {
+                  if (amount <= 0 || amount > widget.client.credit) {
                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Montant invalide")));
                     return;
                   }
@@ -661,7 +941,7 @@ class _ClientDebtDetail extends ConsumerWidget {
 
                   final payment = ClientPayment(
                     id: const Uuid().v4(),
-                    clientId: client.id,
+                    clientId: widget.client.id,
                     accountId: defaultAccount.id,
                     amount: amount,
                     date: DateTime.now(),
@@ -705,7 +985,7 @@ class _ClientDebtDetail extends ConsumerWidget {
                               ),
                             ),
                             Text(
-                              ref.fmt(client.credit),
+                              ref.fmt(widget.client.credit),
                               style: TextStyle(
                                 fontWeight: FontWeight.w900,
                                 fontSize: 18,
@@ -725,7 +1005,7 @@ class _ClientDebtDetail extends ConsumerWidget {
                   label: "MONTANT À REMBOURSER",
                   icon: FluentIcons.money_24_regular,
                   keyboardType: TextInputType.number,
-                  hint: "Ex: 5000",
+                  hint: "Ex : 5000",
                 ),
                 const SizedBox(height: 16),
                 EnterpriseWidgets.buildPremiumDropdown<String>(
@@ -770,6 +1050,7 @@ class _DebtItem extends ConsumerWidget {
     final isDark = theme.brightness == Brightness.dark;
 
     final remainingAmount = sale.totalAmount - sale.amountPaid;
+    final progress = sale.totalAmount > 0 ? (sale.amountPaid / sale.totalAmount) : 0.0;
     final now = DateTime.now();
     
     int daysRemaining = 0;
@@ -829,7 +1110,7 @@ class _DebtItem extends ConsumerWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      "Reste à payer: ${ref.fmt(remainingAmount)}",
+                      "Reste à payer : ${ref.fmt(remainingAmount)}",
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: colorScheme.error,
                         fontWeight: FontWeight.bold,
@@ -847,12 +1128,38 @@ class _DebtItem extends ConsumerWidget {
                       fontWeight: FontWeight.w900,
                       fontSize: 14,
                       color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
-                      decoration: TextDecoration.lineThrough,
                     ),
                   ),
                 ],
               ),
             ],
+          ),
+          const SizedBox(height: 12),
+          // Progress of payments
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "Progression de paiement : ${(progress * 100).toStringAsFixed(0)}%",
+                style: theme.textTheme.bodySmall?.copyWith(fontSize: 10, color: Colors.grey.shade500),
+              ),
+              Text(
+                "${ref.fmt(sale.amountPaid)} payés sur ${ref.fmt(sale.totalAmount)}",
+                style: theme.textTheme.bodySmall?.copyWith(fontSize: 10, color: Colors.grey.shade500, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: progress,
+              backgroundColor: isDark ? const Color(0xFF1E2129) : Colors.grey.shade200,
+              valueColor: AlwaysStoppedAnimation(progress >= 1.0 
+                  ? Colors.green 
+                  : (progress >= 0.5 ? Colors.blue : Colors.orange)),
+              minHeight: 6,
+            ),
           ),
           const SizedBox(height: 12),
           Container(
@@ -870,7 +1177,7 @@ class _DebtItem extends ConsumerWidget {
                     Icon(FluentIcons.calendar_clock_20_regular, size: 14, color: statusColor),
                     const SizedBox(width: 6),
                     Text(
-                      "Échéance: $dateLabel",
+                      "Échéance : $dateLabel",
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: statusColor,
                         fontWeight: FontWeight.bold,

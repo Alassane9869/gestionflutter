@@ -71,6 +71,7 @@ class DashboardMetrics {
   final double totalStockValue;
   final double totalPotentialProfit;
   final double totalExpensesPeriod;
+  final List<Map<String, dynamic>> categoryMatrix;
 
   const DashboardMetrics({
     this.totalRevenue = 0.0,
@@ -98,6 +99,7 @@ class DashboardMetrics {
     this.totalStockValue = 0.0,
     this.totalPotentialProfit = 0.0,
     this.totalExpensesPeriod = 0.0,
+    this.categoryMatrix = const [],
   });
 }
 
@@ -232,7 +234,7 @@ class DashboardNotifier extends AsyncNotifier<DashboardMetrics> {
         prevYear -= 1;
       }
       prevStartDate = DateTime(prevYear, prevMonth, 1);
-      prevEndDate = startDate;
+      prevEndDate = startDate.subtract(const Duration(days: 1));
     } else if (filter == DashboardFilter.custom &&
         filterState.customEndDate != null) {
       final diff = filterState.customEndDate!.difference(
@@ -504,6 +506,34 @@ class DashboardNotifier extends AsyncNotifier<DashboardMetrics> {
       LIMIT 5
     ''');
 
+    // 14. Matrice Croisée de Performance par Catégorie
+    final categoryMatrix = await db.rawQuery('''
+      SELECT 
+        COALESCE(NULLIF(p.category, ''), 'Non classé') as category,
+        COUNT(DISTINCT p.id) as products_count,
+        SUM(p.quantity) as stock_qty,
+        SUM(p.quantity * COALESCE(NULLIF(p.weighted_average_cost, 0), p.purchasePrice, 0)) as stock_value,
+        SUM(COALESCE(si_sales.total_qty_sold, 0)) as qty_sold,
+        SUM(COALESCE(si_sales.total_sales, 0)) as sales_value,
+        CASE WHEN ? = 1 THEN SUM(COALESCE(si_sales.total_profit, 0)) ELSE 0.0 END as profit_value
+      FROM products p
+      LEFT JOIN (
+        SELECT 
+          si.product_id,
+          SUM(si.quantity - si.returned_quantity) as total_qty_sold,
+          SUM((si.quantity - si.returned_quantity) * si.unit_price * (1 - COALESCE(si.discount_percent, 0)/100)) as total_sales,
+          SUM((si.quantity - si.returned_quantity) * (si.unit_price * (1 - COALESCE(si.discount_percent, 0)/100) - COALESCE(NULLIF(p_cost.weighted_average_cost, 0), p_cost.purchasePrice, 0))) as total_profit
+        FROM sale_items si
+        JOIN products p_cost ON si.product_id = p_cost.id
+        JOIN sales s ON si.sale_id = s.id
+        WHERE s.$dateCondition$userCondition
+        GROUP BY si.product_id
+      ) si_sales ON p.id = si_sales.product_id
+      WHERE p.is_service = 0
+      GROUP BY category
+      ORDER BY sales_value DESC
+    ''', [isGlobalRole ? 1 : 0, ...dateArgs, ...userArgs]);
+
     return DashboardMetrics(
       totalRevenue: totalRevenue,
       periodRevenue: periodRevenue,
@@ -530,6 +560,7 @@ class DashboardNotifier extends AsyncNotifier<DashboardMetrics> {
       totalStockValue: isGlobalRole ? totalStockValue : 0.0,
       totalPotentialProfit: isGlobalRole ? totalPotentialProfit : 0.0,
       totalExpensesPeriod: totalExpensesPeriod,
+      categoryMatrix: categoryMatrix,
     );
     } catch (e, st) {
       debugPrint('🚨 DashboardProvider: Erreur fatale de chargement: $e');

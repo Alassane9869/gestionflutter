@@ -15,6 +15,7 @@ import 'package:danaya_plus/features/settings/providers/shop_settings_provider.d
 import 'package:danaya_plus/core/network/client_sync_service.dart';
 import 'package:danaya_plus/core/network/server_service.dart';
 import 'package:danaya_plus/features/finance/providers/session_providers.dart';
+import 'package:danaya_plus/features/pos/providers/sales_history_providers.dart';
 
 import 'package:danaya_plus/core/utils/safe_math.dart';
 
@@ -553,6 +554,7 @@ class PosService {
       // Refresh providers
       _ref.invalidate(productListProvider);
       _ref.invalidate(clientListProvider);
+      _ref.invalidate(salesHistoryProvider);
       _ref.read(treasuryProvider.notifier).refresh(); 
       
       // Calculate points for display

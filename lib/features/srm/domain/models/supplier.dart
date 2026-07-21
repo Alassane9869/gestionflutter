@@ -7,6 +7,7 @@ class Supplier {
   final String? phone;
   final String? email;
   final String? address;
+  final String? logoPath;
   final double totalPurchases;
   final double outstandingDebt;
 
@@ -17,6 +18,7 @@ class Supplier {
     this.phone,
     this.email,
     this.address,
+    this.logoPath,
     this.totalPurchases = 0.0,
     this.outstandingDebt = 0.0,
     this.isSynced = false,
@@ -33,6 +35,7 @@ class Supplier {
       'phone': phone,
       'email': email,
       'address': address,
+      'logo_path': logoPath,
       'total_purchases': totalPurchases,
       'outstanding_debt': outstandingDebt,
       'is_synced': isSynced ? 1 : 0,
@@ -47,6 +50,7 @@ class Supplier {
       phone: map['phone'] as String?,
       email: map['email'] as String?,
       address: map['address'] as String?,
+      logoPath: map['logo_path'] as String?,
       totalPurchases: (map['total_purchases'] as num?)?.toDouble() ?? 0.0,
       outstandingDebt: (map['outstanding_debt'] as num?)?.toDouble() ?? 0.0,
       isSynced: (map['is_synced'] as num? ?? 0).toInt() == 1,
@@ -59,6 +63,7 @@ class Supplier {
     String? phone,
     String? email,
     String? address,
+    String? logoPath,
     double? totalPurchases,
     double? outstandingDebt,
     bool? isSynced,
@@ -70,6 +75,7 @@ class Supplier {
       phone: phone ?? this.phone,
       email: email ?? this.email,
       address: address ?? this.address,
+      logoPath: logoPath ?? this.logoPath,
       totalPurchases: totalPurchases ?? this.totalPurchases,
       outstandingDebt: outstandingDebt ?? this.outstandingDebt,
       isSynced: isSynced ?? this.isSynced,

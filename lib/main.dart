@@ -25,6 +25,7 @@ import 'package:danaya_plus/core/widgets/safety_screen.dart'; // [NOUVEAU]
 import 'package:danaya_plus/core/widgets/auto_lock_wrapper.dart'; // [NOUVEAU]
 import 'package:danaya_plus/core/database/database_service.dart';
 import 'package:danaya_plus/core/services/pdf_resource_service.dart';
+import 'package:flutter_quill/flutter_quill.dart';
 import 'dart:ui';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -364,6 +365,7 @@ class _GestionStockAppState extends ConsumerState<GestionStockApp> {
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
+        FlutterQuillLocalizations.delegate,
       ],
       builder: (context, child) {
         // Désactiver globalement les info-bulles et la sémantique pour contourner le bug

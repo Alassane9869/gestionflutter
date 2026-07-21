@@ -16,11 +16,25 @@ import 'package:danaya_plus/core/network/client_sync_service.dart';
 import 'package:danaya_plus/core/utils/image_resolver.dart';
 import 'package:danaya_plus/features/inventory/application/inventory_automation_service.dart';
 import 'widgets/label_printing_utils.dart';
+import 'package:danaya_plus/features/assistant/application/assistant_service.dart';
 
 class ProductFormDialog extends ConsumerStatefulWidget {
   final Product? product;
+  final String? initialName;
+  final double? initialSellingPrice;
+  final double? initialPurchasePrice;
+  final double? initialQuantity;
+  final String? initialCategory;
 
-  const ProductFormDialog({super.key, this.product});
+  const ProductFormDialog({
+    super.key,
+    this.product,
+    this.initialName,
+    this.initialSellingPrice,
+    this.initialPurchasePrice,
+    this.initialQuantity,
+    this.initialCategory,
+  });
 
   @override
   ConsumerState<ProductFormDialog> createState() => _ProductFormDialogState();
@@ -62,14 +76,32 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
   void initState() {
     super.initState();
     final p = widget.product;
-    _nameController = TextEditingController(text: p?.name ?? "");
+    _nameController = TextEditingController(text: p?.name ?? widget.initialName ?? "");
     _barcodeController = TextEditingController(text: p?.barcode ?? "");
     _referenceController = TextEditingController(text: p?.reference ?? "");
-    _categoryController = TextEditingController(text: p?.category ?? "");
+    _categoryController = TextEditingController(text: p?.category ?? widget.initialCategory ?? "");
     _locationController = TextEditingController(text: p?.location ?? "");
-    _quantityController = TextEditingController(text: _formatNumber(p?.quantity, fallback: "0"));
-    _purchasePriceController = TextEditingController(text: _formatNumber(p?.purchasePrice, fallback: "0"));
-    _sellingPriceController = TextEditingController(text: _formatNumber(p?.sellingPrice, fallback: "0"));
+    _quantityController = TextEditingController(
+      text: p != null 
+          ? _formatNumber(p.quantity, fallback: "0") 
+          : widget.initialQuantity != null 
+              ? _formatNumber(widget.initialQuantity, fallback: "0") 
+              : "0"
+    );
+    _purchasePriceController = TextEditingController(
+      text: p != null 
+          ? _formatNumber(p.purchasePrice, fallback: "0") 
+          : widget.initialPurchasePrice != null 
+              ? _formatNumber(widget.initialPurchasePrice, fallback: "0") 
+              : "0"
+    );
+    _sellingPriceController = TextEditingController(
+      text: p != null 
+          ? _formatNumber(p.sellingPrice, fallback: "0") 
+          : widget.initialSellingPrice != null 
+              ? _formatNumber(widget.initialSellingPrice, fallback: "0") 
+              : "0"
+    );
     _alertThresholdController = TextEditingController(text: _formatNumber(p?.alertThreshold, fallback: "5"));
     _descriptionController = TextEditingController(text: p?.description ?? "");
     _imagePath = p?.imagePath;
@@ -81,7 +113,15 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
     }
     
     _loadCategories();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(assistantProvider.notifier).setActiveDialog(
+          widget.product != null ? 'Modification Produit' : 'Création Produit'
+        );
+      }
+    });
   }
+
 
   Future<void> _loadCategories() async {
     final categories = await ref.read(productRepositoryProvider).getCategories();
@@ -132,6 +172,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
     _sellingPriceController.dispose();
     _alertThresholdController.dispose();
     _descriptionController.dispose();
+    ref.read(assistantProvider.notifier).setActiveDialog(null);
     super.dispose();
   }
 

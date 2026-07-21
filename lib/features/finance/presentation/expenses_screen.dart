@@ -8,6 +8,7 @@ import 'package:danaya_plus/features/settings/providers/shop_settings_provider.d
 import 'package:danaya_plus/core/widgets/enterprise_widgets.dart';
 import 'package:danaya_plus/features/inventory/presentation/widgets/dashboard_widgets.dart';
 import 'package:danaya_plus/core/utils/date_formatter.dart';
+import 'package:danaya_plus/features/assistant/application/assistant_service.dart';
 
 
 const List<String> kExpenseCategories = [
@@ -20,6 +21,293 @@ class ExpensesScreen extends ConsumerStatefulWidget {
 
   @override
   ConsumerState<ExpensesScreen> createState() => _ExpensesScreenState();
+
+  static Future<void> showAddExpenseDialog(
+    BuildContext context,
+    WidgetRef ref, {
+    double? initialAmount,
+    String? initialCategory,
+    String? initialDescription,
+  }) {
+    final amountCtrl = TextEditingController(
+      text: initialAmount != null && initialAmount > 0 ? initialAmount.toStringAsFixed(0) : '',
+    );
+    final descCtrl = TextEditingController(text: initialDescription ?? '');
+    FinancialAccount? selectedAccount;
+    
+    // Trouver la catégorie correspondante de manière insensible à la casse
+    String selectedCategory = kExpenseCategories.first;
+    if (initialCategory != null) {
+      final matched = kExpenseCategories.firstWhere(
+        (c) => c.toLowerCase() == initialCategory.toLowerCase(),
+        orElse: () => '',
+      );
+      if (matched.isNotEmpty) {
+        selectedCategory = matched;
+      }
+    }
+
+    ref.read(assistantProvider.notifier).setActiveDialog('Saisie Dépense');
+
+    return showDialog(
+      context: context,
+      builder: (context) {
+        final accountsAsync = ref.watch(myTreasuryAccountsProvider);
+        final settingsAsync = ref.watch(shopSettingsProvider);
+        final settings = settingsAsync.value;
+        final theme = Theme.of(context);
+        final isDark = theme.brightness == Brightness.dark;
+        final accent = theme.colorScheme.primary;
+        
+        return StatefulBuilder(
+          builder: (context, setStateDialog) => Dialog(
+            backgroundColor: Colors.transparent,
+            child: Container(
+              width: 500,
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF141418) : Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.grey.shade200,
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.15),
+                    blurRadius: 40,
+                    offset: const Offset(0, 20),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // HEADER
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 20, 16, 0),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(colors: [accent.withValues(alpha: 0.8), accent]),
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: accent.withValues(alpha: 0.3),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(FluentIcons.receipt_money_24_filled, color: Colors.white, size: 20),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "ENREGISTRER UNE DÉPENSE",
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.5,
+                                  color: isDark ? Colors.white : Colors.black87,
+                                ),
+                              ),
+                              Text(
+                                "Saisissez les détails de la dépense opérationnelle",
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.close_rounded, size: 20, color: isDark ? Colors.grey.shade500 : Colors.grey.shade400),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Divider(height: 1, thickness: 1),
+                  ),
+
+                  // BODY
+                  Flexible(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: accountsAsync.when(
+                        data: (accounts) {
+                          if (accounts.isEmpty) {
+                            return const Padding(
+                              padding: EdgeInsets.all(20.0),
+                              child: Center(child: Text("Veuillez créer un compte financier d'abord.")),
+                            );
+                          }
+                          selectedAccount ??= accounts.firstWhere((a) => a.isDefault, orElse: () => accounts.first);
+                          
+                          final amount = double.tryParse(amountCtrl.text) ?? 0.0;
+                          final isInsufficient = selectedAccount != null && selectedAccount!.balance < amount;
+                          
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: EnterpriseWidgets.buildPremiumDropdown<FinancialAccount>(
+                                      label: "PAYER DEPUIS",
+                                      value: selectedAccount,
+                                      icon: FluentIcons.building_bank_20_regular,
+                                      items: accounts,
+                                      itemLabel: (a) => "${a.name} (${DateFormatter.formatCurrency(a.balance, settings?.currency ?? 'F')})",
+                                      onChanged: (val) => setStateDialog(() => selectedAccount = val),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: EnterpriseWidgets.buildPremiumDropdown<String>(
+                                      label: "CATÉGORIE",
+                                      value: selectedCategory,
+                                      icon: FluentIcons.tag_20_regular,
+                                      items: kExpenseCategories,
+                                      itemLabel: (c) => c,
+                                      onChanged: (val) => setStateDialog(() => selectedCategory = val ?? kExpenseCategories.first),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              EnterpriseWidgets.buildPremiumTextField(
+                                context, ctrl: amountCtrl, label: "MONTANT", hint: "0.00", icon: FluentIcons.money_24_regular, keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                onChanged: (val) => setStateDialog(() {}),
+                              ),
+                              if (isInsufficient)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8.0),
+                                  child: Row(
+                                    children: [
+                                      const Icon(FluentIcons.warning_16_filled, color: Colors.red, size: 14),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        "Solde insuffisant (Dispo: ${DateFormatter.formatCurrency(selectedAccount?.balance ?? 0, settings?.currency ?? 'F')})",
+                                        style: const TextStyle(color: Colors.red, fontSize: 11, fontWeight: FontWeight.bold),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              const SizedBox(height: 16),
+                              EnterpriseWidgets.buildPremiumTextField(
+                                context, ctrl: descCtrl, label: "DESCRIPTION (OPTIONNEL)", icon: FluentIcons.text_description_20_regular, hint: "Facture N°...",
+                              ),
+                            ],
+                          );
+                        },
+                        loading: () => const SizedBox(height: 100, child: Center(child: CircularProgressIndicator())),
+                        error: (e, st) => Padding(
+                          padding: const EdgeInsets.all(20.0),
+                          child: Center(child: Text("Erreur $e")),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // ACTIONS
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                    child: ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: amountCtrl,
+                      builder: (context, val, _) {
+                        final accounts = accountsAsync.value ?? [];
+                        final amount = double.tryParse(val.text) ?? 0.0;
+                        final isInsufficient = selectedAccount != null && selectedAccount!.balance < amount;
+                        final canSubmit = !isInsufficient && amount > 0 && selectedAccount != null && accounts.isNotEmpty;
+                        
+                        return Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.pop(context),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  side: BorderSide(
+                                    color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.grey.shade300,
+                                  ),
+                                ),
+                                child: Text(
+                                  "ANNULER",
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 11,
+                                    letterSpacing: 1,
+                                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 2,
+                              child: ElevatedButton.icon(
+                                onPressed: canSubmit 
+                                  ? () async {
+                                      final tx = FinancialTransaction(
+                                        accountId: selectedAccount!.id,
+                                        type: TransactionType.OUT,
+                                        amount: amount,
+                                        category: TransactionCategory.EXPENSE,
+                                        description: descCtrl.text.isEmpty ? "Dépense $selectedCategory" : descCtrl.text,
+                                        date: DateTime.now(),
+                                        referenceId: selectedCategory,
+                                      );
+
+                                      await ref.read(treasuryProvider.notifier).addTransaction(tx);
+                                      if (!context.mounted) return;
+                                      Navigator.pop(context);
+                                    }
+                                  : null,
+                                icon: const Icon(FluentIcons.save_24_regular, size: 18, color: Colors.white),
+                                label: const Text(
+                                  "VALIDER LA DÉPENSE",
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 11,
+                                    letterSpacing: 1,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: accent,
+                                  disabledBackgroundColor: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade200,
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  elevation: 0,
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    ).then((_) {
+      ref.read(assistantProvider.notifier).setActiveDialog(null);
+    });
+  }
 }
 
 class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
@@ -164,122 +452,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
   }
 
   void _showAddExpenseDialog(BuildContext context) {
-    final amountCtrl = TextEditingController();
-    final descCtrl = TextEditingController();
-    FinancialAccount? selectedAccount;
-    String selectedCategory = kExpenseCategories.first;
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        final accountsAsync = ref.watch(myTreasuryAccountsProvider);
-        final settingsAsync = ref.watch(shopSettingsProvider);
-        final settings = settingsAsync.value;
-        return StatefulBuilder(
-          builder: (context, setStateDialog) => AlertDialog(
-            title: Row(
-              children: [
-                Icon(FluentIcons.receipt_money_24_filled, color: Theme.of(context).colorScheme.primary),
-                const SizedBox(width: 8),
-                const Text("Enregistrer une Dépense"),
-              ],
-            ),
-            content: SizedBox(
-              width: 400,
-              child: accountsAsync.when(
-                data: (accounts) {
-                  if (accounts.isEmpty) return const Text("Veuillez créer un compte financier d'abord.");
-                  selectedAccount ??= accounts.firstWhere((a) => a.isDefault, orElse: () => accounts.first);
-                  return SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        EnterpriseWidgets.buildPremiumTextField(
-                          context, ctrl: amountCtrl, label: "Montant", icon: FluentIcons.money_24_regular, keyboardType: TextInputType.number,
-                          onChanged: (val) => setStateDialog(() {}),
-                        ),
-                        const SizedBox(height: 16),
-                        EnterpriseWidgets.buildPremiumDropdown<FinancialAccount>(
-                          label: "Payer depuis",
-                          value: selectedAccount,
-                          icon: FluentIcons.building_bank_20_regular,
-                          items: accounts,
-                          itemLabel: (a) => "${a.name} (${DateFormatter.formatCurrency(a.balance, settings?.currency ?? 'F')})",
-                          onChanged: (val) => setStateDialog(() => selectedAccount = val),
-                        ),
-                        const SizedBox(height: 16),
-                        EnterpriseWidgets.buildPremiumDropdown<String>(
-                          label: "Catégorie",
-                          value: selectedCategory,
-                          icon: FluentIcons.tag_20_regular,
-                          items: kExpenseCategories,
-                          itemLabel: (c) => c,
-                          onChanged: (val) => setStateDialog(() => selectedCategory = val ?? kExpenseCategories.first),
-                        ),
-                        const SizedBox(height: 16),
-                        EnterpriseWidgets.buildPremiumTextField(
-                          context, ctrl: descCtrl, label: "Description (Optionnel)", icon: FluentIcons.text_description_20_regular, hint: "Facture N°...",
-                        ),
-                      ],
-                    ),
-                  );
-                },
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (e, st) => Text("Erreur $e"),
-              ),
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text("ANNULER")),
-              StatefulBuilder(
-                builder: (context, setBtnState) {
-                  final amount = double.tryParse(amountCtrl.text) ?? 0.0;
-                  final isInsufficient = selectedAccount != null && selectedAccount!.balance < amount;
-
-                  return Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (isInsufficient)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8.0, right: 8.0),
-                          child: Text(
-                            "Solde insuffisant (${DateFormatter.formatCurrency(selectedAccount?.balance ?? 0, settings?.currency ?? 'F')})",
-                            style: const TextStyle(color: Colors.red, fontSize: 10, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: isInsufficient ? Colors.grey : Theme.of(context).colorScheme.primary, 
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
-                        ),
-                        icon: const Icon(FluentIcons.checkmark_24_regular, size: 20),
-                        label: const Text("VALIDER LA DÉPENSE"),
-                        onPressed: isInsufficient || amount <= 0 || selectedAccount == null 
-                          ? null 
-                          : () async {
-                            final tx = FinancialTransaction(
-                              accountId: selectedAccount!.id,
-                              type: TransactionType.OUT,
-                              amount: amount,
-                              category: TransactionCategory.EXPENSE,
-                              description: descCtrl.text.isEmpty ? "Dépense $selectedCategory" : descCtrl.text,
-                              date: DateTime.now(),
-                              referenceId: selectedCategory,
-                            );
-
-                            await ref.read(treasuryProvider.notifier).addTransaction(tx);
-                            if (!context.mounted) return;
-                            Navigator.pop(context);
-                          },
-                      ),
-                    ],
-                  );
-                }
-              ),
-            ],
-          ),
-        );
-      },
-    );
+    ExpensesScreen.showAddExpenseDialog(context, ref);
   }
 }
 

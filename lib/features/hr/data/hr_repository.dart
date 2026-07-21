@@ -42,20 +42,19 @@ final allLeavesProvider = FutureProvider<List<LeaveRequest>>((ref) async {
 final hrStatsProvider = FutureProvider<HrStats>((ref) async {
   final users = await ref.watch(userListProvider.future);
   final contracts = await ref.watch(allContractsProvider.future);
-  final payrolls = await ref.watch(allPayrollsProvider.future);
   final leaves = await ref.watch(allLeavesProvider.future);
 
   final now = DateTime.now();
-  final currentMonth = now.month;
-  final currentYear = now.year;
 
-  final monthlyPayrollSum = payrolls
-      .where((p) => p.month == currentMonth && p.year == currentYear)
-      .fold(0.0, (sum, p) => sum + p.netSalary);
+  final activeContractsList = contracts.where((c) => c.status == ContractStatus.active);
+  final monthlyPayrollSum = activeContractsList.fold(
+    0.0,
+    (sum, c) => sum + c.baseSalary + c.transportAllowance + c.mealAllowance,
+  );
 
   return HrStats(
     totalEmployees: users.length,
-    activeContracts: contracts.where((c) => c.status == ContractStatus.active).length,
+    activeContracts: activeContractsList.length,
     monthlyPayrollSum: monthlyPayrollSum,
     pendingLeaves: leaves.where((l) => l.status == LeaveStatus.pending).length,
     expiringContractsCount: contracts.where((c) => c.status == ContractStatus.active && (c.endDate != null && c.endDate!.difference(now).inDays <= 30)).length,
@@ -75,6 +74,8 @@ class HrRepository {
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
+
+
 
   Future<List<EmployeeContract>> getContractsForUser(String userId) async {
     final db = await _dbService.database;

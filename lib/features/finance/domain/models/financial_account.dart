@@ -42,7 +42,10 @@ class FinancialAccount {
     return FinancialAccount(
       id: map['id'],
       name: map['name'],
-      type: AccountType.values.firstWhere((e) => e.name == map['type']),
+      type: AccountType.values.firstWhere(
+        (e) => e.name == map['type'],
+        orElse: () => AccountType.CASH,
+      ),
       balance: (map['balance'] as num).toDouble(),
       isDefault: map['is_default'] == 1,
       operator: map['operator'] as String?,
@@ -105,11 +108,17 @@ class FinancialTransaction {
     return FinancialTransaction(
       id: map['id'],
       accountId: map['account_id'],
-      type: TransactionType.values.firstWhere((e) => e.name == map['type']),
+      type: TransactionType.values.firstWhere(
+        (e) => e.name == map['type'],
+        orElse: () => TransactionType.OUT,
+      ),
       amount: (map['amount'] as num).toDouble(),
-      category: TransactionCategory.values.firstWhere((e) => e.name == map['category']),
+      category: TransactionCategory.values.firstWhere(
+        (e) => e.name == map['category'],
+        orElse: () => TransactionCategory.ADJUSTMENT,
+      ),
       description: map['description'],
-      date: DateTime.parse(map['date']),
+      date: DateTime.tryParse(map['date'] ?? '') ?? DateTime.now(),
       referenceId: map['reference_id'],
       sessionId: map['session_id'],
     );

@@ -14,8 +14,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:danaya_plus/core/services/whatsapp_service.dart';
 import 'package:danaya_plus/core/widgets/enterprise_widgets.dart';
+import 'package:danaya_plus/core/services/email_templates.dart';
 import 'package:danaya_plus/features/clients/providers/client_providers.dart';
 import 'package:danaya_plus/features/clients/domain/models/client.dart';
+import 'package:danaya_plus/core/utils/printing_helper.dart';
 
 class SaleDocViewer extends ConsumerStatefulWidget {
   final ReceiptData? receiptData;
@@ -39,6 +41,7 @@ class _SaleDocViewerState extends ConsumerState<SaleDocViewer> {
   late String _currentType;
   bool _isSendingEmail = false;
   bool _isSendingWhatsapp = false;
+  int _printCopies = 1;
   
   // Modèles sélectionnés
   ReceiptTemplate _selectedReceiptTpl = ReceiptTemplate.prestige;
@@ -78,47 +81,73 @@ class _SaleDocViewerState extends ConsumerState<SaleDocViewer> {
     final clientEmail = _getClientEmail();
     final emailCtrl = TextEditingController(text: clientEmail);
     
+    String? selectedEmailTemplate = 'modern';
+    
     // 1. Demander/Confirmer l'email si nécessaire
-    final targetEmail = await showDialog<String>(
+    final resultList = await showDialog<List<String>>(
       context: context,
-      builder: (context) => EnterpriseWidgets.buildPremiumDialog(
-        context,
-        title: "Envoyer par Email",
-        icon: FluentIcons.mail_24_regular,
-        width: 450,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "Veuillez confirmer ou saisir l'adresse e-mail de réception :",
-              style: TextStyle(fontSize: 13, color: Colors.grey),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => EnterpriseWidgets.buildPremiumDialog(
+          context,
+          title: "Envoyer par Email",
+          icon: FluentIcons.mail_24_regular,
+          width: 450,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Veuillez confirmer ou saisir l'adresse e-mail de réception :",
+                style: TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+              const SizedBox(height: 16),
+              EnterpriseWidgets.buildPremiumTextField(
+                context,
+                ctrl: emailCtrl,
+                label: "ADRESSE E-MAIL DU DESTINATAIRE",
+                hint: "Ex: client@domain.com",
+                icon: FluentIcons.mail_24_regular,
+                keyboardType: TextInputType.emailAddress,
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                "Modèle d'Email :",
+                style: TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                initialValue: selectedEmailTemplate,
+                decoration: const InputDecoration(border: OutlineInputBorder()),
+                items: EmailTemplates.catalog.map((e) => DropdownMenuItem(
+                  value: e['id'],
+                  child: Text(e['name'] ?? ''),
+                )).toList(),
+                onChanged: (val) {
+                  if (val != null) {
+                    setDialogState(() => selectedEmailTemplate = val);
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Annuler"),
             ),
-            const SizedBox(height: 16),
-            EnterpriseWidgets.buildPremiumTextField(
-              context,
-              ctrl: emailCtrl,
-              label: "ADRESSE E-MAIL DU DESTINATAIRE",
-              hint: "Ex: client@domain.com",
-              icon: FluentIcons.mail_24_regular,
-              keyboardType: TextInputType.emailAddress,
+            FilledButton(
+              onPressed: () => Navigator.pop(context, [emailCtrl.text.trim(), selectedEmailTemplate!]),
+              child: const Text("Confirmer & Envoyer"),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Annuler"),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, emailCtrl.text.trim()),
-            child: const Text("Confirmer & Envoyer"),
-          ),
-        ],
       ),
     );
 
-    if (targetEmail == null || targetEmail.isEmpty) return;
+    if (resultList == null || resultList[0].isEmpty) return;
+    
+    final targetEmail = resultList[0];
+    final targetTemplate = resultList[1];
 
     setState(() => _isSendingEmail = true);
 
@@ -138,22 +167,23 @@ class _SaleDocViewerState extends ConsumerState<SaleDocViewer> {
           recipient: targetEmail,
           invoiceNumber: widget.invoiceData!.invoiceNumber,
           pdfFile: file,
+          emailTemplateId: targetTemplate,
         );
       } else if (_currentType == "quote") {
         result = await emailService.sendQuote(
           recipient: targetEmail,
           quoteNumber: widget.quoteData!.quoteNumber,
           pdfFile: file,
+          emailTemplateId: targetTemplate,
         );
       } else {
-        // Ticket — envoi avec le template HTML professionnel
         result = await emailService.sendReceipt(
           recipient: targetEmail,
-          saleId: widget.receiptData?.saleId ?? 'N/A',
+          saleId: widget.receiptData!.saleId,
           pdfFile: file,
+          emailTemplateId: targetTemplate,
         );
       }
-
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -500,13 +530,60 @@ class _SaleDocViewerState extends ConsumerState<SaleDocViewer> {
                   _buildHeaderAction(FluentIcons.mail_20_regular, "Email", _sendEmail, Colors.orange, isLoading: _isSendingEmail),
                   _buildHeaderAction(FluentIcons.share_20_regular, "Partager", _shareDoc, theme.colorScheme.primary),
                   Container(width: 1, height: 24, margin: const EdgeInsets.symmetric(horizontal: 6), color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.grey.shade200),
+                  
+                  // Copy Selector
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      InkWell(
+                        onTap: () {
+                          if (_printCopies > 1) setState(() => _printCopies--);
+                        },
+                        child: Icon(FluentIcons.subtract_16_regular, size: 16, color: isDark ? Colors.grey.shade400 : Colors.grey.shade600),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Text("$_printCopies", style: TextStyle(fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface)),
+                      ),
+                      InkWell(
+                        onTap: () => setState(() => _printCopies++),
+                        child: Icon(FluentIcons.add_16_regular, size: 16, color: isDark ? Colors.grey.shade400 : Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 4),
+
                   _buildHeaderAction(FluentIcons.print_20_regular, "Imprimer", () async {
+                    final settings = ref.read(shopSettingsProvider).value ?? const ShopSettings();
+                    final doc = await _buildCurrentDoc();
+                    final bytes = await doc.save();
+                    
+                    String? targetPrinterName;
                     if (_currentType == "ticket") {
-                      await ReceiptService.print(widget.receiptData!, _selectedReceiptTpl);
+                      targetPrinterName = settings.thermalPrinterName;
                     } else if (_currentType == "invoice") {
-                      await InvoiceService.print(widget.invoiceData!, _selectedInvoiceTpl);
+                      targetPrinterName = settings.invoicePrinterName;
                     } else if (_currentType == "quote") {
-                      await QuoteService.print(widget.quoteData!, _selectedQuoteTpl);
+                      targetPrinterName = settings.quotePrinterName;
+                    }
+
+                    if (settings.directPhysicalPrinting) {
+                      for (int i = 0; i < _printCopies; i++) {
+                        await PrintingHelper.printBytesWithFallback(
+                          bytes: bytes,
+                          targetPrinterName: targetPrinterName,
+                          directPrint: true,
+                          jobName: "${_getFileName()}_copy_$i",
+                        );
+                        if (i < _printCopies - 1) await Future.delayed(const Duration(milliseconds: 500));
+                      }
+                    } else {
+                      await PrintingHelper.printBytesWithFallback(
+                        bytes: bytes,
+                        targetPrinterName: targetPrinterName,
+                        directPrint: false,
+                        jobName: _getFileName(),
+                      );
                     }
                   }, theme.colorScheme.primary),
                   const SizedBox(width: 4),

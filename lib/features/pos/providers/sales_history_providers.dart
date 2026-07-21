@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:danaya_plus/core/database/database_service.dart';
 import 'package:danaya_plus/features/pos/domain/models/sale.dart';
+import 'package:danaya_plus/features/clients/providers/debt_reminder_provider.dart';
 
 import 'package:danaya_plus/features/auth/application/auth_service.dart';
 
@@ -96,3 +97,57 @@ class SalesPaymentFilterNotifier extends Notifier<String> {
   void update(String val) => state = val;
 }
 final salesPaymentFilterProvider = NotifierProvider<SalesPaymentFilterNotifier, String>(SalesPaymentFilterNotifier.new);
+
+final clientSalesProvider = FutureProvider.family<List<SaleWithDetails>, String>((ref, clientId) async {
+  final db = await ref.read(databaseServiceProvider).database;
+  
+  // HEAL FIRST: Sync sales amount_paid with client payments history!
+  await healClientSalesDebt(clientId, db);
+  
+  final List<Map<String, dynamic>> salesData = await db.rawQuery('''
+    SELECT s.*, c.name as client_name, u.username as user_name, ru.username as refunded_by_user_name 
+    FROM sales s 
+    LEFT JOIN clients c ON s.client_id = c.id 
+    LEFT JOIN users u ON s.user_id = u.id
+    LEFT JOIN users ru ON s.refunded_by_user_id = ru.id
+    WHERE s.client_id = ?
+    ORDER BY s.date DESC
+  ''', [clientId]);
+
+  List<SaleWithDetails> result = [];
+
+  for (var row in salesData) {
+    final sale = Sale.fromMap(row);
+    final clientName = row['client_name'] as String?;
+    final userName = row['user_name'] as String?;
+
+    final List<Map<String, dynamic>> itemsData = await db.rawQuery('''
+      SELECT si.*, p.name as product_name 
+      FROM sale_items si
+      LEFT JOIN products p ON si.product_id = p.id
+      WHERE si.sale_id = ?
+    ''', [sale.id]);
+
+    List<SaleItemWithProduct> items = [];
+    for (var itemRow in itemsData) {
+      final saleItem = SaleItem.fromMap(itemRow);
+      final name = itemRow['product_name'] as String? ?? saleItem.description ?? 'Article';
+      items.add(SaleItemWithProduct(
+        item: saleItem,
+        productName: name,
+      ));
+    }
+
+    final refundedByUserName = row['refunded_by_user_name'] as String?;
+
+    result.add(SaleWithDetails(
+      sale: sale, 
+      clientName: clientName, 
+      userName: userName, 
+      refundedByUserName: refundedByUserName, 
+      items: items,
+    ));
+  }
+
+  return result;
+});

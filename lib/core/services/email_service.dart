@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show DateTimeRange;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:danaya_plus/core/utils/date_formatter.dart';
+import 'package:danaya_plus/core/services/email_templates.dart';
 
 class EmailSendResult {
   final bool success;
@@ -120,6 +121,7 @@ class EmailService {
     required String recipient,
     required String subject,
     required String message,
+    List<File>? attachments,
   }) async {
     return sendEmail(
       recipient: recipient,
@@ -131,6 +133,7 @@ class EmailService {
         badgeColor: '#2563eb', // Bleu
       ),
       isHtml: true,
+      attachments: attachments,
     );
   }
 
@@ -138,11 +141,20 @@ class EmailService {
   String _buildHtmlLayout(
     String title, 
     String content, {
+    String? templateId,
     String? buttonText, 
     String? buttonUrl, 
     String? badgeText, 
     String? badgeColor,
   }) {
+    if (templateId != null) {
+      return EmailTemplates.buildHtml(
+        templateId,
+        subject: title,
+        body: content,
+        shopName: settings.name,
+      );
+    }
     final primaryColor = '#2563eb'; // Bleu Elite
     final statusColor = badgeColor ?? primaryColor;
     
@@ -212,6 +224,7 @@ class EmailService {
     required String recipient,
     required String invoiceNumber,
     required File pdfFile,
+    String? emailTemplateId,
   }) async {
     final title = 'Facture $invoiceNumber';
     final content = '''
@@ -226,6 +239,7 @@ class EmailService {
       body: _buildHtmlLayout(
         title, 
         content,
+        templateId: emailTemplateId,
         badgeText: 'FACTURE',
         badgeColor: '#2563eb',
       ),
@@ -239,6 +253,7 @@ class EmailService {
     required String recipient,
     required String saleId,
     required File pdfFile,
+    String? emailTemplateId,
   }) async {
     final shortId = saleId.length > 8 ? saleId.substring(0, 8) : saleId;
     final title = 'Ticket de Caisse #$shortId';
@@ -255,6 +270,7 @@ class EmailService {
       body: _buildHtmlLayout(
         title, 
         content,
+        templateId: emailTemplateId,
         badgeText: 'REÇU',
         badgeColor: '#10b981',
       ),
@@ -268,6 +284,7 @@ class EmailService {
     required String recipient,
     required String quoteNumber,
     required File pdfFile,
+    String? emailTemplateId,
   }) async {
     final title = 'Devis $quoteNumber';
     final content = '''
@@ -282,6 +299,7 @@ class EmailService {
       body: _buildHtmlLayout(
         title, 
         content,
+        templateId: emailTemplateId,
         badgeText: 'DEVIS',
         badgeColor: '#6366f1',
       ),
@@ -296,6 +314,7 @@ class EmailService {
     required String poNumber,
     required String supplierName,
     required File pdfFile,
+    String? emailTemplateId,
   }) async {
     final title = 'Bon de Commande $poNumber';
     final content = '''
@@ -307,7 +326,7 @@ class EmailService {
     return sendEmail(
       recipient: recipient,
       subject: 'Bon de Commande $poNumber - ${settings.name}',
-      body: _buildHtmlLayout(title, content),
+      body: _buildHtmlLayout(title, content, templateId: emailTemplateId),
       isHtml: true,
       attachments: [pdfFile],
     );

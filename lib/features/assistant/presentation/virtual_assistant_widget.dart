@@ -42,6 +42,9 @@ class _VirtualAssistantWidgetState extends ConsumerState<VirtualAssistantWidget>
   bool _isCallMinimized = false;
   double _bubbleX = 24.0;
   double _bubbleY = 100.0;
+
+  // Cached pour utilisation safe dans dispose()
+  dynamic _cachedVoiceNotifier;
   Timer? _callTimer;
 
   // Scroll optimization: memoize state to avoid scrolling on every wave animation/rebuild
@@ -262,7 +265,8 @@ class _VirtualAssistantWidgetState extends ConsumerState<VirtualAssistantWidget>
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     // Couper automatiquement l'appel vocal si le volet est fermé/détruit
-    ref.read(voiceServiceProvider.notifier).endCall();
+    // On sauvegarde la référence AVANT super.dispose() pour éviter le StateError
+    _cachedVoiceNotifier?.endCall();
     super.dispose();
   }
 
@@ -282,6 +286,7 @@ class _VirtualAssistantWidgetState extends ConsumerState<VirtualAssistantWidget>
   Widget build(BuildContext context) {
     final state = ref.watch(assistantProvider);
     final voiceState = ref.watch(voiceServiceProvider);
+    _cachedVoiceNotifier = ref.read(voiceServiceProvider.notifier);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -1135,11 +1140,12 @@ class _VirtualAssistantWidgetState extends ConsumerState<VirtualAssistantWidget>
           TextButton(
             child: const Text("Valider"),
             onPressed: () async {
+              final navigator = Navigator.of(ctx);
               final newTitle = controller.text.trim();
               if (newTitle.isNotEmpty) {
                 await ref.read(assistantProvider.notifier).renameThread(thread.id, newTitle);
               }
-              if (mounted) Navigator.pop(ctx);
+              if (mounted) navigator.pop();
             },
           ),
         ],
@@ -2925,7 +2931,7 @@ class _ChatBubble extends ConsumerWidget {
                           )
                         else if (msg.isStreaming && ref.watch(assistantProvider.select((s) => s.isOpen)))
                           _TypewriterMarkdown(
-                            text: msg.text,
+                            text: msg.text.replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n'),
                             styleSheet: styleSheet,
                             onComplete: () {
                               ref
@@ -2935,7 +2941,7 @@ class _ChatBubble extends ConsumerWidget {
                           )
                         else
                           MarkdownBody(
-                            data: msg.text,
+                            data: msg.text.replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n'),
                             selectable: false,
                             styleSheet: styleSheet,
                           ),
@@ -2945,8 +2951,9 @@ class _ChatBubble extends ConsumerWidget {
                   // Actions row
                   Padding(
                     padding: const EdgeInsets.only(bottom: 6, left: 4, right: 4),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+                    child: Wrap(
+                      spacing: 0,
+                      runSpacing: 4,
                       children: [
                         Text(
                           DateFormatter.formatTime(msg.timestamp),

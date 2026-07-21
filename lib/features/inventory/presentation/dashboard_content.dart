@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -50,7 +51,7 @@ class DashboardContent extends ConsumerWidget {
   }
 }
 
-class _Body extends StatelessWidget {
+class _Body extends StatefulWidget {
   final DashboardMetrics metrics;
   final DashboardFilterState filterState;
   final WidgetRef ref;
@@ -62,6 +63,16 @@ class _Body extends StatelessWidget {
     required this.ref,
     required this.c,
   });
+
+  @override
+  State<_Body> createState() => _BodyState();
+}
+
+class _BodyState extends State<_Body> {
+  DashboardMetrics get metrics => widget.metrics;
+  DashboardFilterState get filterState => widget.filterState;
+  WidgetRef get ref => widget.ref;
+  DashColors get c => widget.c;
 
   @override
   Widget build(BuildContext context) {
@@ -76,21 +87,27 @@ class _Body extends StatelessWidget {
         _TopBar(filterState: filterState, ref: ref, c: c),
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ── VUE COMPACTE DES KPIs (Strip) ──
+                // ═══════════════════════════════════════════════════
+                // SECTION 1 — KPIs
+                // ═══════════════════════════════════════════════════
                 if (customization.showKpis) ...[
                   _buildCompactKpiStrip(w, isGlobal),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
                 ],
 
-                // ── SECTION GRAPHIQUES (Bento Row 1) ──
+                // ═══════════════════════════════════════════════════
+                // SECTION 2 — PERFORMANCE COMMERCIALE
+                // ═══════════════════════════════════════════════════
                 if (customization.showRevenueChart || customization.showProductMix) ...[
+                  _buildSectionLabel("Performance Commerciale", FluentIcons.chart_multiple_24_regular),
+                  const SizedBox(height: 12),
                   if (isWide)
                     SizedBox(
-                      height: 280,
+                      height: 300,
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
@@ -106,10 +123,7 @@ class _Body extends StatelessWidget {
                               child: _buildSectionWrapper(
                                 title: "Mix Produits",
                                 subtitle: "Meilleures ventes",
-                                child: DashboardPieChart(
-                                  data: metrics.topProducts.take(5).toList(),
-                                  c: c,
-                                ),
+                                child: DashboardPieChart(data: metrics.topProducts.take(5).toList(), c: c),
                               ),
                             )
                           else
@@ -126,22 +140,19 @@ class _Body extends StatelessWidget {
                       _buildSectionWrapper(
                         title: "Mix Produits",
                         subtitle: "Meilleures ventes",
-                        child: SizedBox(
-                          height: 200,
-                          child: DashboardPieChart(
-                            data: metrics.topProducts.take(5).toList(),
-                            c: c,
-                          ),
-                        ),
+                        child: SizedBox(height: 200, child: DashboardPieChart(data: metrics.topProducts.take(5).toList(), c: c)),
                       ),
-                      const SizedBox(height: 12),
                     ],
                   ],
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 24),
                 ],
 
-                // ── SECTION ANALYSE (Bento Row 2) ──
+                // ═══════════════════════════════════════════════════
+                // SECTION 3 — ACTIVITÉ & STOCK
+                // ═══════════════════════════════════════════════════
                 if (customization.showTopSales || customization.showRecentSales || customization.showStockAlerts) ...[
+                  _buildSectionLabel("Activité & Inventaire", FluentIcons.box_checkmark_24_regular),
+                  const SizedBox(height: 12),
                   if (isWide)
                     IntrinsicHeight(
                       child: Row(
@@ -177,44 +188,214 @@ class _Body extends StatelessWidget {
                     ],
                     if (customization.showStockAlerts) ...[
                       _buildStockAlerts(),
-                      const SizedBox(height: 12),
                     ],
                   ],
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 24),
                 ],
 
-                // ── SECTION FINANCIÈRE SECONDAIRE (Bento Row 3) ──
-                if (isGlobal && (customization.showFinancialSummary || customization.showDebtors))
+                // ═══════════════════════════════════════════════════
+                // SECTION 3.5 — ANALYSE CROISÉE DES CATÉGORIES
+                // ═══════════════════════════════════════════════════
+                if (metrics.categoryMatrix.isNotEmpty) ...[
+                  _buildSectionLabel("Analyse Croisée des Catégories", FluentIcons.table_24_regular),
+                  const SizedBox(height: 12),
+                  _buildCategoryPerformanceMatrix(isWide, isGlobal),
+                  const SizedBox(height: 24),
+                ],
+
+                // ═══════════════════════════════════════════════════
+                // SECTION 4 — ANALYSE FINANCIÈRE (Global uniquement)
+                // ═══════════════════════════════════════════════════
+                if (isGlobal) ...[
+                  _buildSectionLabel("Analyse Financière", FluentIcons.data_pie_24_regular),
+                  const SizedBox(height: 12),
+
+                  // Ligne 1 : KPI financiers + Débiteurs
+                  if (customization.showFinancialSummary || customization.showDebtors) ...[
+                    if (isWide)
+                      IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (customization.showFinancialSummary)
+                              Expanded(child: _buildFinancialTilesRow1(c))
+                            else
+                              const SizedBox.shrink(),
+                            if (customization.showFinancialSummary && customization.showDebtors)
+                              const SizedBox(width: 12),
+                            if (customization.showDebtors)
+                              Expanded(child: _buildTopDebtors())
+                            else
+                              const SizedBox.shrink(),
+                          ],
+                        ),
+                      )
+                    else ...[
+                      if (customization.showFinancialSummary) ...[
+                        _buildFinancialTilesRow1(c),
+                        const SizedBox(height: 12),
+                      ],
+                      if (customization.showDebtors) ...[
+                        _buildTopDebtors(),
+                      ],
+                    ],
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Ligne 2 : Marge Nette + Bilan Revenus/Dépenses
                   if (isWide)
-                    IntrinsicHeight(
+                    SizedBox(
+                      height: 260,
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          if (customization.showFinancialSummary)
-                            Expanded(child: _buildFinancialTilesRow1(c))
-                          else
-                            const SizedBox.shrink(),
-                          if (customization.showFinancialSummary && customization.showDebtors)
-                            const SizedBox(width: 12),
-                          if (customization.showDebtors)
-                            Expanded(child: _buildTopDebtors())
-                          else
-                            const SizedBox.shrink(),
+                          Expanded(
+                            flex: 2,
+                            child: _buildSectionWrapper(
+                              title: "Marge Nette",
+                              subtitle: "Rentabilité globale",
+                              expandChild: true,
+                              child: DashboardProfitMarginGauge(
+                                c: c,
+                                profitMargin: metrics.periodRevenue > 0
+                                    ? (metrics.totalProfitPeriod / metrics.periodRevenue)
+                                    : 0,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 3,
+                            child: _buildSectionWrapper(
+                              title: "Bilan Financier",
+                              subtitle: "Revenus vs Dépenses",
+                              expandChild: true,
+                              child: DashboardExpenseVsIncomeChart(
+                                c: c,
+                                income: metrics.periodRevenue,
+                                expense: metrics.totalExpensesPeriod,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: _buildSectionWrapper(
+                              title: "Santé du Stock",
+                              subtitle: "Disponibilité",
+                              expandChild: true,
+                              child: DashboardStockHealthChart(
+                                c: c,
+                                inStock: (metrics.totalProductsCount - metrics.lowStockCount - metrics.outOfStockCount).clamp(0, 999999),
+                                lowStock: metrics.lowStockCount,
+                                outOfStock: metrics.outOfStockCount,
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     )
                   else ...[
-                    if (customization.showFinancialSummary) ...[
-                      _buildFinancialTilesRow1(c),
-                      const SizedBox(height: 12),
-                    ],
-                    if (customization.showDebtors) ...[
-                      _buildTopDebtors(),
-                      const SizedBox(height: 12),
-                    ],
+                    _buildSectionWrapper(
+                      title: "Marge Nette",
+                      subtitle: "Rentabilité globale",
+                      child: SizedBox(
+                        height: 220,
+                        child: DashboardProfitMarginGauge(
+                          c: c,
+                          profitMargin: metrics.periodRevenue > 0
+                              ? (metrics.totalProfitPeriod / metrics.periodRevenue)
+                              : 0,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildSectionWrapper(
+                      title: "Bilan Financier",
+                      subtitle: "Revenus vs Dépenses",
+                      child: SizedBox(
+                        height: 220,
+                        child: DashboardExpenseVsIncomeChart(
+                          c: c,
+                          income: metrics.periodRevenue,
+                          expense: metrics.totalExpensesPeriod,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildSectionWrapper(
+                      title: "Santé du Stock",
+                      subtitle: "Disponibilité",
+                      child: SizedBox(
+                        height: 160,
+                        child: DashboardStockHealthChart(
+                          c: c,
+                          inStock: (metrics.totalProductsCount - metrics.lowStockCount - metrics.outOfStockCount).clamp(0, 999999),
+                          lowStock: metrics.lowStockCount,
+                          outOfStock: metrics.outOfStockCount,
+                        ),
+                      ),
+                    ),
                   ],
+                  const SizedBox(height: 16),
+
+                  // Ligne 3 : Radar Performance
+                  _buildSectionWrapper(
+                    title: "Performance Globale",
+                    subtitle: "Indicateurs clés",
+                    child: SizedBox(
+                      height: 220,
+                      child: DashboardRadarChart(
+                        c: c,
+                        salesScore: (metrics.periodRevenue > 0) ? 0.85 : 0.2,
+                        profitScore: (metrics.totalProfitPeriod > 0) ? 0.75 : 0.1,
+                        stockScore: metrics.outOfStockCount == 0 ? 0.95 : 0.6,
+                        clientScore: metrics.periodSalesCount > 0 ? 0.8 : 0.3,
+                      ),
+                    ),
+                  ),
+                ],
+
+                const SizedBox(height: 24),
               ],
             ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ─────────────────────────────────────────────────
+  // SECTION LABEL — Titres de section élégants
+  // ─────────────────────────────────────────────────
+  Widget _buildSectionLabel(String title, IconData icon) {
+    return Row(
+      children: [
+        Container(
+          width: 3,
+          height: 18,
+          decoration: BoxDecoration(
+            color: c.blue,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Icon(icon, size: 16, color: c.textSecondary),
+        const SizedBox(width: 8),
+        Text(
+          title.toUpperCase(),
+          style: TextStyle(
+            color: c.textSecondary,
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.2,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Container(
+            height: 1,
+            color: c.border,
           ),
         ),
       ],
@@ -323,11 +504,13 @@ class _Body extends StatelessWidget {
     required String title,
     required String subtitle,
     required Widget child,
+    bool expandChild = false,
   }) {
+    final paddingChild = Padding(padding: const EdgeInsets.all(16), child: child);
     return SectionCard(
       title: title,
       subtitle: subtitle,
-      child: Padding(padding: const EdgeInsets.all(16), child: child),
+      child: expandChild ? Expanded(child: paddingChild) : paddingChild,
     );
   }
 
@@ -371,86 +554,90 @@ class _Body extends StatelessWidget {
                   ),
                 )
               : LineChart(
-                  LineChartData(
-                    gridData: FlGridData(
-                      show: true,
-                      drawVerticalLine: false,
-                      getDrawingHorizontalLine: (_) =>
-                          FlLine(color: c.border, strokeWidth: 1),
-                    ),
-                    titlesData: FlTitlesData(
-                      rightTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
+                    LineChartData(
+                      minX: 0,
+                      maxX: data.length > 1 ? (data.length - 1).toDouble() : 1.0,
+                      minY: 0,
+                      maxY: data.isEmpty ? 100 : (data.map((e) => (e['total'] as num?)?.toDouble() ?? 0).reduce(math.max) * 1.2).clamp(10.0, double.infinity),
+                      gridData: FlGridData(
+                        show: true,
+                        drawVerticalLine: false,
+                        getDrawingHorizontalLine: (_) =>
+                            FlLine(color: c.border, strokeWidth: 1),
                       ),
-                      topTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                      leftTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 52,
-                          getTitlesWidget: (val, m) => Text(
-                            val > 1000
-                                ? '${(val / 1000).toStringAsFixed(0)}k'
-                                : val.toInt().toString(),
-                            style: TextStyle(
-                              color: c.textSecondary,
-                              fontSize: 10,
+                      titlesData: FlTitlesData(
+                        rightTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
+                        topTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
+                        leftTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 52,
+                            getTitlesWidget: (val, m) => Text(
+                              val > 1000
+                                  ? '${(val / 1000).toStringAsFixed(0)}k'
+                                  : val.toInt().toString(),
+                              style: TextStyle(
+                                color: c.textSecondary,
+                                fontSize: 10,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 24,
-                          getTitlesWidget: (val, m) {
-                            final idx = val.toInt();
-                            if (idx < 0 || idx >= data.length) {
-                              return const SizedBox.shrink();
-                            }
-                            // Empêcher la superposition des étiquettes si la période est longue (plus de 7 jours)
-                            final labelInterval = (data.length / 7).ceil();
-                            if (idx % labelInterval != 0 && idx != data.length - 1) {
-                              return const SizedBox.shrink();
-                            }
-                            final raw = data[idx]['day']?.toString() ?? '';
-                            final parts = raw.split('-');
-                            final label = parts.length >= 3
-                                ? '${parts[2]}/${parts[1]}'
-                                : raw;
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 6),
-                              child: Text(
-                                  label,
-                                  style: TextStyle(
-                                    color: c.textSecondary,
-                                    fontSize: 10,
+                        bottomTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 24,
+                            getTitlesWidget: (val, m) {
+                              final idx = val.toInt();
+                              if (idx < 0 || idx >= data.length) {
+                                return const SizedBox.shrink();
+                              }
+                              // Empêcher la superposition des étiquettes si la période est longue (plus de 7 jours)
+                              final labelInterval = (data.length / 7).ceil();
+                              if (idx % labelInterval != 0 && idx != data.length - 1) {
+                                return const SizedBox.shrink();
+                              }
+                              final raw = data[idx]['day']?.toString() ?? '';
+                              final parts = raw.split('-');
+                              final label = parts.length >= 3
+                                  ? '${parts[2]}/${parts[1]}'
+                                  : raw;
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: Text(
+                                    label,
+                                    style: TextStyle(
+                                      color: c.textSecondary,
+                                      fontSize: 10,
+                                    ),
                                   ),
-                                ),
-                              );
-                            },
+                                );
+                              },
+                            ),
                           ),
                         ),
-                      ),
-                    borderData: FlBorderData(show: false),
-                    lineTouchData: LineTouchData(
-                      touchTooltipData: LineTouchTooltipData(
-                        getTooltipColor: (spot) => c.surfaceElev,
-                        getTooltipItems: (spots) => spots
-                            .map(
-                              (s) => LineTooltipItem(
-                                ref.fmt(s.y),
-                                TextStyle(
-                                  color: c.blue,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 12,
+                      borderData: FlBorderData(show: false),
+                      lineTouchData: LineTouchData(
+                        touchTooltipData: LineTouchTooltipData(
+                          getTooltipColor: (spot) => c.surfaceElev,
+                          getTooltipItems: (spots) => spots
+                              .map(
+                                (s) => LineTooltipItem(
+                                  ref.fmt(s.y),
+                                  TextStyle(
+                                    color: c.primary,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12,
+                                  ),
                                 ),
-                              ),
-                            )
-                            .toList(),
+                              )
+                              .toList(),
+                        ),
                       ),
-                    ),
                     lineBarsData: [
                       LineChartBarData(
                         spots: data
@@ -465,7 +652,7 @@ class _Body extends StatelessWidget {
                             .toList(),
                         isCurved: true,
                         curveSmoothness: 0.3,
-                        color: c.blue,
+                        color: c.primary,
                         barWidth: 3,
                         isStrokeCapRound: true,
                         dotData: FlDotData(
@@ -473,7 +660,7 @@ class _Body extends StatelessWidget {
                           getDotPainter: (spot, _, __, ___) =>
                               FlDotCirclePainter(
                                 radius: 4,
-                                color: c.blue,
+                                color: c.primary,
                                 strokeWidth: 2,
                                 strokeColor: c.surface,
                               ),
@@ -482,7 +669,7 @@ class _Body extends StatelessWidget {
                           show: true,
                           gradient: LinearGradient(
                             colors: [
-                              c.blue.withValues(alpha: 0.15),
+                              c.primary.withValues(alpha: 0.15),
                               Colors.transparent,
                             ],
                             begin: Alignment.topCenter,
@@ -567,6 +754,120 @@ class _Body extends StatelessWidget {
                     ),
                   )
                   .toList(),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // MATRICE DE PERFORMANCE CATÉGORIES
+  // ═══════════════════════════════════════════════════════════════
+  Widget _buildCategoryPerformanceMatrix(bool isWide, bool isGlobal) {
+    final matrix = metrics.categoryMatrix;
+    return SectionCard(
+      title: "Performance Croisée par Catégorie",
+      subtitle: "Analyse croisée des flux de stock, ventes et rentabilité par catégorie d'articles",
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: c.border),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              headingRowColor: WidgetStatePropertyAll(c.surfaceElev),
+              dataRowMinHeight: 48,
+              dataRowMaxHeight: 48,
+              columnSpacing: isWide ? 24 : 14,
+              horizontalMargin: 12,
+              columns: [
+                DataColumn(label: Text("Catégorie", style: TextStyle(color: c.textPrimary, fontWeight: FontWeight.bold, fontSize: 12))),
+                DataColumn(label: Text("Réf. Articles", style: TextStyle(color: c.textPrimary, fontWeight: FontWeight.bold, fontSize: 12)), numeric: true),
+                DataColumn(label: Text("Stock (Qté)", style: TextStyle(color: c.textPrimary, fontWeight: FontWeight.bold, fontSize: 12)), numeric: true),
+                if (isGlobal)
+                  DataColumn(label: Text("Valeur Stock", style: TextStyle(color: c.textPrimary, fontWeight: FontWeight.bold, fontSize: 12)), numeric: true),
+                DataColumn(label: Text("Unités Vendues", style: TextStyle(color: c.textPrimary, fontWeight: FontWeight.bold, fontSize: 12)), numeric: true),
+                DataColumn(label: Text("C.A. Généré", style: TextStyle(color: c.textPrimary, fontWeight: FontWeight.bold, fontSize: 12)), numeric: true),
+                if (isGlobal)
+                  DataColumn(label: Text("Bénéfice Brut", style: TextStyle(color: c.textPrimary, fontWeight: FontWeight.bold, fontSize: 12)), numeric: true),
+                DataColumn(label: Text("Indicateur de Rotation", style: TextStyle(color: c.textPrimary, fontWeight: FontWeight.bold, fontSize: 12))),
+              ],
+              rows: matrix.map((row) {
+                final catName = row['category'] as String? ?? 'Non classé';
+                final productsCount = row['products_count'] as int? ?? 0;
+                final stockQty = (row['stock_qty'] as num?)?.toDouble() ?? 0.0;
+                final stockValue = (row['stock_value'] as num?)?.toDouble() ?? 0.0;
+                final qtySold = (row['qty_sold'] as num?)?.toDouble() ?? 0.0;
+                final salesValue = (row['sales_value'] as num?)?.toDouble() ?? 0.0;
+                final profitValue = (row['profit_value'] as num?)?.toDouble() ?? 0.0;
+
+                // Taux de Rotation = Qte Vendue / (Qte en Stock + Qte Vendue)
+                final double totalFlow = stockQty + qtySold;
+                final double rotationRate = totalFlow > 0 ? (qtySold / totalFlow) : 0.0;
+
+                Color rotationColor = c.rose;
+                String rotationLabel = "Faible";
+                if (rotationRate >= 0.5) {
+                  rotationColor = c.emerald;
+                  rotationLabel = "Excellent";
+                } else if (rotationRate >= 0.15) {
+                  rotationColor = c.amber;
+                  rotationLabel = "Modéré";
+                }
+
+                return DataRow(
+                  cells: [
+                    DataCell(
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(FluentIcons.folder_24_regular, size: 14, color: c.blue),
+                          const SizedBox(width: 8),
+                          Text(catName, style: TextStyle(color: c.textPrimary, fontWeight: FontWeight.w600, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                    DataCell(Text(productsCount.toString(), style: TextStyle(color: c.textPrimary, fontSize: 12))),
+                    DataCell(Text(DateFormatter.formatNumber(stockQty), style: TextStyle(color: c.textPrimary, fontSize: 12))),
+                    if (isGlobal)
+                      DataCell(Text(ref.fmt(stockValue), style: TextStyle(color: c.textPrimary, fontSize: 12))),
+                    DataCell(Text(DateFormatter.formatNumber(qtySold), style: TextStyle(color: c.textPrimary, fontSize: 12))),
+                    DataCell(Text(ref.fmt(salesValue), style: TextStyle(color: c.textPrimary, fontWeight: FontWeight.bold, fontSize: 12))),
+                    if (isGlobal)
+                      DataCell(Text(ref.fmt(profitValue), style: TextStyle(color: c.emerald, fontWeight: FontWeight.w700, fontSize: 12))),
+                    DataCell(
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 40,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: rotationRate,
+                                backgroundColor: c.border,
+                                valueColor: AlwaysStoppedAnimation<Color>(rotationColor),
+                                minHeight: 4,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            "${(rotationRate * 100).toStringAsFixed(0)}% ($rotationLabel)",
+                            style: TextStyle(color: rotationColor, fontWeight: FontWeight.bold, fontSize: 10),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              }).toList(),
+            ),
+          ),
+        ),
       ),
     );
   }

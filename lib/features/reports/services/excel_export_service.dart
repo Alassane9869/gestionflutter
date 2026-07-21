@@ -55,12 +55,13 @@ class ExcelExportService {
     required List<TopProduct> topProducts,
     required Database db,
     String? currency,
-    bool openFile = true, // Nouveau paramètre
+    String shopName = "Mon Commerce",
+    List<UserSaleSummary>? userSales,
+    bool openFile = true,
   }) async {
     final startStr = range.start.toIso8601String();
     final endStr = DateTime(range.end.year, range.end.month, range.end.day, 23, 59, 59).toIso8601String();
 
-    // 1. Fetch data on main isolate (cannot pass DB to other isolate)
     final List<Map<String, dynamic>> sales = await db.rawQuery('''
       SELECT s.date, s.id, COALESCE(c.name, 'Client Général') as client_name,
         u.username as seller_name,
@@ -82,30 +83,27 @@ class ExcelExportService {
       ORDER BY t.date ASC
     ''', [startStr, endStr]);
 
-    // 2. PRE-FORMAT date strings on main isolate (locale is initialized here)
-    // Isolates don't share locale data, so we format before passing.
     final formattedRangeStart = DateFormatter.formatDate(range.start);
     final formattedRangeEnd = DateFormatter.formatDate(range.end);
     final formattedNow = DateFormatter.formatDateTime(DateTime.now());
 
-    // Pre-format sales dates
     final formattedSalesDates = <String>[];
     for (final s in sales) {
       final date = DateTime.parse(s['date'] as String);
       formattedSalesDates.add(DateFormatter.formatDateTime(date));
     }
 
-    // Pre-format expense dates
     final formattedExpenseDates = <String>[];
     for (final e in expenses) {
       final date = DateTime.parse(e['date'] as String);
       formattedExpenseDates.add(DateFormatter.formatDate(date));
     }
 
-    // 3. Offload heavy Excel generation to background isolate
     final excelCurrency = currency ?? 'FCFA';
+    final safeUserSales = userSales ?? [];
 
     final bytes = await compute(_generateExcelBytes, {
+      'shopName': shopName,
       'range_start': range.start,
       'range_end': range.end,
       'formatted_range_start': formattedRangeStart,
@@ -115,17 +113,15 @@ class ExcelExportService {
       'formatted_expense_dates': formattedExpenseDates,
       'kpis': kpis,
       'topProducts': topProducts,
+      'userSales': safeUserSales.map((u) => {'username': u.username, 'totalRevenue': u.totalRevenue, 'salesCount': u.salesCount}).toList(),
       'sales': sales,
       'expenses': expenses,
       'currency': excelCurrency,
     });
 
-    // 4. Unique filename with timestamp (prevents PathAccessException if Excel is open)
     final timestamp = DateTime.now().toIso8601String().replaceAll(':', '').replaceAll('-', '').split('.').first;
     final String fileName = 'Rapport_Financier_$timestamp.xlsx';
     
-    // If openFile is true (manual export), save to Downloads. 
-    // If false (email/test), save to Temp to avoid locking issues in user folders.
     final Directory targetDir = openFile 
         ? (await getDownloadsDirectory() ?? await getTemporaryDirectory()) 
         : await getTemporaryDirectory();
@@ -146,9 +142,10 @@ class ExcelExportService {
     final List<TopProduct> topProducts = params['topProducts'];
     final List<Map<String, dynamic>> sales = params['sales'];
     final List<Map<String, dynamic>> expenses = params['expenses'];
+    final List<dynamic> userSales = params['userSales'];
     final String currency = params['currency'] ?? 'FCFA';
+    final String shopName = params['shopName'] ?? 'Mon Commerce';
 
-    // Pre-formatted strings from main isolate (locale-safe)
     final String fmtRangeStart = params['formatted_range_start'];
     final String fmtRangeEnd = params['formatted_range_end'];
     final String fmtNow = params['formatted_now'];
@@ -157,45 +154,44 @@ class ExcelExportService {
 
     final excel = Excel.createExcel();
 
-
     // ═══════════════════════════════════════
     // FEUILLE 1 : TABLEAU DE BORD
     // ═══════════════════════════════════════
     final sheet1 = excel['Tableau de Bord'];
     excel.delete('Sheet1');
 
-    // Titre principal
     sheet1.merge(CellIndex.indexByString('A1'), CellIndex.indexByString('F1'));
     final titleCell = sheet1.cell(CellIndex.indexByString('A1'));
-    titleCell.value = TextCellValue('RAPPORT FINANCIER');
+    titleCell.value = TextCellValue(shopName.toUpperCase());
     titleCell.cellStyle = _headerStyle(bgHex: 'FF0F172A', fgHex: 'FFFFFFFF', fontSize: 16, align: HorizontalAlign.Center);
     sheet1.setRowHeight(0, 32);
 
-    // Période
     sheet1.merge(CellIndex.indexByString('A2'), CellIndex.indexByString('F2'));
-    final periodCell = sheet1.cell(CellIndex.indexByString('A2'));
+    final subTitleCell = sheet1.cell(CellIndex.indexByString('A2'));
+    subTitleCell.value = TextCellValue('RAPPORT FINANCIER COMPLET');
+    subTitleCell.cellStyle = _headerStyle(bgHex: 'FF1E3A5F', fgHex: 'FFADD8E6', fontSize: 13, align: HorizontalAlign.Center);
+    sheet1.setRowHeight(1, 24);
+
+    sheet1.merge(CellIndex.indexByString('A3'), CellIndex.indexByString('F3'));
+    final periodCell = sheet1.cell(CellIndex.indexByString('A3'));
     periodCell.value = TextCellValue('Période : $fmtRangeStart au $fmtRangeEnd   |   Généré le : $fmtNow');
     periodCell.cellStyle = _headerStyle(bgHex: 'FF1E3A5F', fgHex: 'FFADD8E6', fontSize: 10, align: HorizontalAlign.Center);
-    sheet1.setRowHeight(1, 22);
+    sheet1.setRowHeight(2, 22);
 
-    // Espace
-    sheet1.setRowHeight(2, 10);
+    sheet1.setRowHeight(3, 10);
 
-    // Sous-titre KPIs
-    sheet1.merge(CellIndex.indexByString('A4'), CellIndex.indexByString('F4'));
-    final kpiTitle = sheet1.cell(CellIndex.indexByString('A4'));
+    sheet1.merge(CellIndex.indexByString('A5'), CellIndex.indexByString('F5'));
+    final kpiTitle = sheet1.cell(CellIndex.indexByString('A5'));
     kpiTitle.value = TextCellValue('INDICATEURS CLÉS DE PERFORMANCE (KPI)');
     kpiTitle.cellStyle = _headerStyle(bgHex: 'FF2563EB', fgHex: 'FFFFFFFF', fontSize: 12, align: HorizontalAlign.Left);
-    sheet1.setRowHeight(3, 24);
+    sheet1.setRowHeight(4, 24);
 
-    // En-têtes KPI
     final kpiHeaders = ['INDICATEUR', 'VALEUR ($currency)', 'ÉVOLUTION', 'STATUT', 'COMMENTAIRE', ''];
     for (int i = 0; i < kpiHeaders.length; i++) {
-      _writeHeader(sheet1, i, 4, kpiHeaders[i], bgHex: 'FF1E40AF', fgHex: 'FFFFFFFF');
+      _writeHeader(sheet1, i, 5, kpiHeaders[i], bgHex: 'FF1E40AF', fgHex: 'FFFFFFFF');
     }
-    sheet1.setRowHeight(4, 22);
+    sheet1.setRowHeight(5, 22);
 
-    // Données KPI
     final kpiRows = [
       ['Chiffre d\'Affaires Brut', kpis.totalRevenue, '', 'OK: Bon', kpis.totalRevenue > 0 ? 'Revenus positifs sur la période' : 'Aucun revenu enregistré', ''],
       ['Bénéfice Brut (Marge Produits)', kpis.totalProfit, '', kpis.totalProfit >= 0 ? 'OK: Positif' : 'ERR: Négatif', 'Ventes - Coût d\'achat des produits', ''],
@@ -209,7 +205,7 @@ class ExcelExportService {
     for (int i = 0; i < kpiRows.length; i++) {
       final bgColor = i % 2 == 0 ? 'FFF0F7FF' : 'FFFFFFFF';
       for (int j = 0; j < kpiRows[i].length; j++) {
-        final cell = sheet1.cell(CellIndex.indexByColumnRow(columnIndex: j, rowIndex: 5 + i));
+        final cell = sheet1.cell(CellIndex.indexByColumnRow(columnIndex: j, rowIndex: 6 + i));
         cell.value = _buildCellValue(kpiRows[i][j]);
         final bold = j == 0 || j == 1;
         final fgColor = j == 1 ? (kpis.netProfit >= 0 ? 'FF16A34A' : 'FFDC2626') : 'FF0F172A';
@@ -219,14 +215,13 @@ class ExcelExportService {
         }
         cell.cellStyle = _dataStyle(bgHex: bgColor, fgHex: j == 1 ? fgColor : null, bold: bold, numberFormat: numFmtStyle);
       }
-      sheet1.setRowHeight(4 + i, 20);
+      sheet1.setRowHeight(5 + i, 20);
     }
 
-    // Espacement TOP PRODUITS
-    final tpStartRow = 14;
+    final tpStartRow = 15;
     sheet1.merge(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: tpStartRow), CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: tpStartRow));
     final tpTitle = sheet1.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: tpStartRow));
-    tpTitle.value = TextCellValue('TOP PRODUITS — MEILLEURES VENTES DE LA PÉRIODE');
+    tpTitle.value = TextCellValue('TOP PRODUITS — MEILLEURES VENTES');
     tpTitle.cellStyle = _headerStyle(bgHex: 'FF16A34A', fgHex: 'FFFFFFFF', fontSize: 12, align: HorizontalAlign.Left);
     sheet1.setRowHeight(tpStartRow, 24);
 
@@ -254,7 +249,6 @@ class ExcelExportService {
       sheet1.setRowHeight(tpStartRow + 1 + i, 20);
     }
 
-    // Largeurs de colonnes
     _setColWidth(sheet1, 0, 16);
     _setColWidth(sheet1, 1, 40);
     _setColWidth(sheet1, 2, 20);
@@ -263,26 +257,68 @@ class ExcelExportService {
     _setColWidth(sheet1, 5, 10);
 
     // ═══════════════════════════════════════
-    // FEUILLE 2 : VENTES DÉTAILLÉES
+    // FEUILLE 2 : PERFORMANCES VENDEURS
     // ═══════════════════════════════════════
-    final sheet2 = excel['Ventes'];
+    final sheetVendors = excel['Performances Vendeurs'];
+    sheetVendors.merge(CellIndex.indexByString('A1'), CellIndex.indexByString('D1'));
+    final svTitle = sheetVendors.cell(CellIndex.indexByString('A1'));
+    svTitle.value = TextCellValue('PERFORMANCES DE L\'ÉQUIPE COMMERCIAL — Du $fmtRangeStart au $fmtRangeEnd');
+    svTitle.cellStyle = _headerStyle(bgHex: 'FF6366F1', fgHex: 'FFFFFFFF', fontSize: 13, align: HorizontalAlign.Center);
+    sheetVendors.setRowHeight(0, 28);
 
-    // Titre
-    sheet2.merge(CellIndex.indexByString('A1'), CellIndex.indexByString('I1'));
+    final svHeaders = ['NOM DU VENDEUR', 'NOMBRE DE VENTES', 'CHIFFRE D\'AFFAIRES ($currency)', 'PANIER MOYEN ($currency)'];
+    for (int i = 0; i < svHeaders.length; i++) {
+      _writeHeader(sheetVendors, i, 1, svHeaders[i], bgHex: 'FF4338CA', fgHex: 'FFFFFFFF');
+    }
+    
+    double totalVendorSales = 0;
+    for (int i = 0; i < userSales.length; i++) {
+      final u = userSales[i];
+      final bgColor = i % 2 == 0 ? 'FFFEE2E2' : 'FFFFFFFF';
+      final rev = (u['totalRevenue'] as num).toDouble();
+      final count = u['salesCount'] as int;
+      final avg = count > 0 ? rev / count : 0.0;
+      totalVendorSales += rev;
+
+      final rowVals = [u['username'], count, rev, avg];
+      for (int j = 0; j < rowVals.length; j++) {
+        final cell = sheetVendors.cell(CellIndex.indexByColumnRow(columnIndex: j, rowIndex: 2 + i));
+        cell.value = _buildCellValue(rowVals[j]);
+        NumFormat? fmt = (j >= 2) ? NumFormat.custom(formatCode: '#,##0') : NumFormat.standard_0;
+        cell.cellStyle = _dataStyle(bgHex: bgColor, numberFormat: fmt);
+      }
+    }
+    
+    final vRow = 2 + userSales.length;
+    for (int j = 0; j < 4; j++) {
+      final cell = sheetVendors.cell(CellIndex.indexByColumnRow(columnIndex: j, rowIndex: vRow));
+      if (j == 0) cell.value = TextCellValue('TOTAL ÉQUIPE');
+      if (j == 2) cell.value = DoubleCellValue(totalVendorSales);
+      cell.cellStyle = _headerStyle(bgHex: 'FF312E81', fgHex: 'FFFFFFFF')..numberFormat = (j == 2) ? NumFormat.custom(formatCode: '#,##0') : NumFormat.standard_0;
+    }
+    
+    _setColWidth(sheetVendors, 0, 30);
+    _setColWidth(sheetVendors, 1, 20);
+    _setColWidth(sheetVendors, 2, 25);
+    _setColWidth(sheetVendors, 3, 25);
+
+    // ═══════════════════════════════════════
+    // FEUILLE 3 : VENTES DÉTAILLÉES
+    // ═══════════════════════════════════════
+    final sheet2 = excel['Détail Ventes'];
+
+    sheet2.merge(CellIndex.indexByString('A1'), CellIndex.indexByString('J1'));
     final s2Title = sheet2.cell(CellIndex.indexByString('A1'));
-    s2Title.value = TextCellValue('DÉTAIL DES VENTES — Du $fmtRangeStart au $fmtRangeEnd');
+    s2Title.value = TextCellValue('DÉTAIL COMPLET DES VENTES — Du $fmtRangeStart au $fmtRangeEnd');
     s2Title.cellStyle = _headerStyle(bgHex: 'FF0F172A', fgHex: 'FFFFFFFF', fontSize: 13, align: HorizontalAlign.Center);
     sheet2.setRowHeight(0, 28);
 
-    // En-têtes
     final hSales = ['DATE/HEURE', 'RÉFÉRENCE', 'CLIENT', 'VENDEUR', 'TOTAL ($currency)', 'PAYÉ ($currency)', 'RESTE ($currency)', 'REMISE ($currency)', 'MODE PAIEMENT', 'STATUT'];
     for (int i = 0; i < hSales.length; i++) {
       _writeHeader(sheet2, i, 1, hSales[i]);
     }
     sheet2.setRowHeight(1, 22);
 
-    // Données ventes
-    double grandTotal = 0, grandPaid = 0, grandDiscount = 0;
     for (int i = 0; i < sales.length; i++) {
       final s = sales[i];
       final total = (s['total_amount'] as num).toDouble();
@@ -290,9 +326,6 @@ class ExcelExportService {
       final refunded = (s['refunded_amount'] as num).toDouble();
       final discount = (s['discount_amount'] as num).toDouble();
       final isCredit = (s['is_credit'] as int) == 1;
-      grandTotal += total;
-      grandPaid += paid;
-      grandDiscount += discount;
 
       final bgColor = i % 2 == 0 ? 'FFF8FAFC' : 'FFFFFFFF';
       final statusColor = refunded > 0 ? 'FFDC2626' : isCredit ? 'FFCA8A04' : 'FF16A34A';
@@ -314,12 +347,16 @@ class ExcelExportService {
       sheet2.setRowHeight(1 + i, 18);
     }
 
-    // Ligne TOTAL
     final totalRow = 2 + sales.length;
-    final totalCells = ['', '', '', 'TOTAL', grandTotal, grandPaid, grandTotal - grandPaid, grandDiscount, '', ''];
-    for (int j = 0; j < totalCells.length; j++) {
+    final lastRowSales = totalRow;
+    for (int j = 0; j < hSales.length; j++) {
       final cell = sheet2.cell(CellIndex.indexByColumnRow(columnIndex: j, rowIndex: totalRow));
-      cell.value = _buildCellValue(totalCells[j]);
+      if (j == 3) {
+        cell.value = TextCellValue('TOTAL GÉNÉRAL');
+      } else if (j >= 4 && j <= 7) {
+        final colLetter = String.fromCharCode(65 + j);
+        cell.value = FormulaCellValue('SUM(${colLetter}3:$colLetter$lastRowSales)');
+      }
       NumFormat? fmt = (j >= 4 && j <= 7) ? NumFormat.custom(formatCode: '#,##0') : null;
       cell.cellStyle = _headerStyle(bgHex: 'FF1E3A5F', fgHex: 'FFFFFFFF', align: j >= 4 ? HorizontalAlign.Right : HorizontalAlign.Left)..numberFormat = fmt ?? NumFormat.standard_0;
     }
@@ -336,9 +373,9 @@ class ExcelExportService {
     _setColWidth(sheet2, 9, 16);
 
     // ═══════════════════════════════════════
-    // FEUILLE 3 : DÉPENSES
+    // FEUILLE 4 : DÉPENSES
     // ═══════════════════════════════════════
-    final sheet3 = excel['Depenses'];
+    final sheet3 = excel['Dépenses'];
 
     sheet3.merge(CellIndex.indexByString('A1'), CellIndex.indexByString('E1'));
     final s3Title = sheet3.cell(CellIndex.indexByString('A1'));
@@ -346,17 +383,15 @@ class ExcelExportService {
     s3Title.cellStyle = _headerStyle(bgHex: 'FFDC2626', fgHex: 'FFFFFFFF', fontSize: 13, align: HorizontalAlign.Center);
     sheet3.setRowHeight(0, 28);
 
-    final hExp = ['DATE', 'LIBELLÉ', 'CATÉGORIE', 'MONTANT ($currency)', 'MODE PAIEMENT'];
+    final hExp = ['DATE', 'LIBELLÉ', 'CATÉGORIE', 'MONTANT ($currency)', 'COMPTE DE PAIEMENT'];
     for (int i = 0; i < hExp.length; i++) {
       _writeHeader(sheet3, i, 1, hExp[i], bgHex: 'FF7F1D1D', fgHex: 'FFFFFFFF');
     }
     sheet3.setRowHeight(1, 22);
 
-    double grandExpenses = 0;
     for (int i = 0; i < expenses.length; i++) {
       final e = expenses[i];
       final amount = (e['amount'] as num).toDouble();
-      grandExpenses += amount;
       final bgColor = i % 2 == 0 ? 'FFFFF5F5' : 'FFFFFFFF';
       final rowVals = [fmtExpenseDates[i], e['description'] ?? '-', e['category'] ?? 'AUTRE', amount, e['account_name']?.toString() ?? '-'];
       for (int j = 0; j < rowVals.length; j++) {
@@ -368,12 +403,14 @@ class ExcelExportService {
       sheet3.setRowHeight(1 + i, 18);
     }
 
-    // Total dépenses
     final expTotalRow = 2 + expenses.length;
-    final expTotals = ['', 'TOTAL DÉPENSES', '', grandExpenses, ''];
-    for (int j = 0; j < expTotals.length; j++) {
+    for (int j = 0; j < hExp.length; j++) {
       final cell = sheet3.cell(CellIndex.indexByColumnRow(columnIndex: j, rowIndex: expTotalRow));
-      cell.value = _buildCellValue(expTotals[j]);
+      if (j == 1) {
+        cell.value = TextCellValue('TOTAL DÉPENSES');
+      } else if (j == 3) {
+        cell.value = FormulaCellValue('SUM(D3:D$expTotalRow)');
+      }
       NumFormat? fmt = (j == 3) ? NumFormat.custom(formatCode: '#,##0') : null;
       cell.cellStyle = _headerStyle(bgHex: 'FF7F1D1D', fgHex: 'FFFFFFFF')..numberFormat = fmt ?? NumFormat.standard_0;
     }
@@ -390,3 +427,4 @@ class ExcelExportService {
     return excel.encode();
   }
 }
+

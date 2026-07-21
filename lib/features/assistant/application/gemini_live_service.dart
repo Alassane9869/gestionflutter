@@ -829,6 +829,83 @@ class GeminiLiveService {
         }
       },
       {
+        'name': 'create_or_update_contract',
+        'description': 'Crée ou met à jour le contrat de travail ou document RH d\'un employé avec un contenu légal personnalisé rédigé par l\'IA.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'employee_name': {
+              'type': 'string',
+              'description': 'Le nom ou l\'identifiant de l\'employé.'
+            },
+            'contract_type': {
+              'type': 'string',
+              'description': 'Le type de contrat : cdi, cdd, stage, essai, prestataire.',
+              'enum': ['cdi', 'cdd', 'stage', 'essai', 'prestataire']
+            },
+            'position': {
+              'type': 'string',
+              'description': 'Le titre du poste.'
+            },
+            'department': {
+              'type': 'string',
+              'description': 'Le département de travail.'
+            },
+            'base_salary': {
+              'type': 'number',
+              'description': 'Le salaire de base mensuel.'
+            },
+            'custom_body': {
+              'type': 'string',
+              'description': 'Le corps légal complet du document rédigé par l\'IA (contenant les clauses, les conditions et le bloc de signature).'
+            }
+          },
+          'required': ['employee_name', 'contract_type', 'custom_body']
+        }
+      },
+      {
+        'name': 'send_email',
+        'description': 'Envoie un email en arrière-plan via le service SMTP interne de l\'application. C\'est un envoi automatique et réel.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'to': {
+              'type': 'string',
+              'description': 'L\'adresse email du destinataire.'
+            },
+            'subject': {
+              'type': 'string',
+              'description': 'Le sujet (titre) de l\'email.'
+            },
+            'body': {
+              'type': 'string',
+              'description': 'Le corps du message. Utilise du HTML pour structurer joliment l\'email (<b>, <br>, <ul>, <li>, <p> etc.) et donner un rendu professionnel.'
+            },
+            'template_id': {
+              'type': 'string',
+              'description': 'Le style visuel de l\'email. Choisis parmi: classic, modern, elegant, alert, marketing. Par défaut: classic.'
+            }
+          },
+          'required': ['to', 'subject', 'body']
+        }
+      },
+      {
+        'name': 'save_active_quote',
+        'description': 'Enregistre le formulaire de Devis actuellement ouvert. Utilise-le uniquement quand le patron est en train de créer ou modifier un devis visuellement (sur l\'écran de Devis) et demande de l\'enregistrer.',
+        'parameters': {
+          'type': 'object',
+          'properties': {}
+        }
+      },
+      {
+        'name': 'get_cart_status',
+        'description': 'Récupère le contenu actuel du panier de caisse OU du formulaire de Devis actuellement ouvert (selon l\'écran actif).',
+        'parameters': {
+          'type': 'object',
+          'properties': {}
+        }
+      },
+      {
         'name': 'export_report',
         'description': 'Génère et exporte le rapport de ventes de la boutique (format PDF ou EXCEL) pour une période donnée.',
         'parameters': {
@@ -1170,6 +1247,41 @@ class GeminiLiveService {
               'description': 'Le nombre maximum de produits à retourner (ex: 5).'
             }
           }
+        }
+      },
+      {
+        'name': 'trigger_ui_action',
+        'description': 'Déclenche une action d\'interface utilisateur ou ouvre un formulaire/boîte de dialogue visuel à l\'écran (nouveau devis, nouveau produit, nouveau client, nouveau fournisseur, nouvelle dépense, transfert de stock).',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'action_type': {
+              'type': 'string',
+              'description': 'L\'action ou formulaire à ouvrir.',
+              'enum': ['new_quote', 'new_product', 'new_client', 'new_supplier', 'new_expense', 'transfer_stock']
+            },
+            'client_name': {
+              'type': 'string',
+              'description': 'Optionnel. Le nom du client ou fournisseur à pré-remplir.'
+            },
+            'product_name': {
+              'type': 'string',
+              'description': 'Optionnel. Le nom du produit à pré-remplir.'
+            },
+            'amount': {
+              'type': 'number',
+              'description': 'Optionnel. Le montant de la dépense ou le prix du produit à pré-remplir.'
+            },
+            'category': {
+              'type': 'string',
+              'description': 'Optionnel. La catégorie (dépense ou produit) à pré-remplir.'
+            },
+            'phone': {
+              'type': 'string',
+              'description': 'Optionnel. Le numéro de téléphone à pré-remplir.'
+            }
+          },
+          'required': ['action_type']
         }
       }
     ];

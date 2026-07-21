@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:danaya_plus/core/services/pdf_resource_service.dart';
@@ -38,6 +39,17 @@ class PurchasePdfItem {
 class PurchasePdfService {
   static const _pageFormat = PdfPageFormat.a4;
 
+  static String _translateStatus(OrderStatus status) {
+    switch (status) {
+      case OrderStatus.PENDING:
+        return "EN ATTENTE";
+      case OrderStatus.DELIVERED:
+        return "LIVRÉ";
+      case OrderStatus.CANCELLED:
+        return "ANNULÉ";
+    }
+  }
+
   static Future<void> generateAndPrint(PurchasePdfData data) async {
     final doc = await _build(data);
     final settings = data.settings;
@@ -50,13 +62,17 @@ class PurchasePdfService {
     );
   }
 
+  static Future<pw.Document> build(PurchasePdfData data) async => _build(data);
+
   static Future<pw.Document> _build(PurchasePdfData data) async {
     final font = PdfResourceService.instance.regular;
     final fontBold = PdfResourceService.instance.bold;
+    final fontItalic = PdfResourceService.instance.italic;
     final doc = pw.Document(
       theme: pw.ThemeData.withFont(
         base: font,
         bold: fontBold,
+        italic: fontItalic,
       ),
     );
     final currency = data.settings.currency;
@@ -143,6 +159,12 @@ class PurchasePdfService {
                   children: [
                     pw.Text("FOURNISSEUR", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: accent)),
                     pw.SizedBox(height: 4),
+                    if (data.supplier.logoPath != null && File(data.supplier.logoPath!).existsSync())
+                      pw.Container(
+                        height: 30,
+                        margin: const pw.EdgeInsets.only(bottom: 6),
+                        child: pw.Image(pw.MemoryImage(File(data.supplier.logoPath!).readAsBytesSync())),
+                      ),
                     pw.Text(data.supplier.name.toUpperCase(), style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
                     if (data.supplier.phone != null) pw.Text("Tél: ${data.supplier.phone}", style: const pw.TextStyle(fontSize: 9)),
                     if (data.supplier.address != null) pw.Text(data.supplier.address!, style: const pw.TextStyle(fontSize: 8)),
@@ -158,7 +180,7 @@ class PurchasePdfService {
                     pw.Text("DÉTAILS", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: accent)),
                     pw.SizedBox(height: 4),
                     pw.Text("Date: ${DateFormatter.formatDate(data.order.date)}", style: const pw.TextStyle(fontSize: 9)),
-                    pw.Text("Statut: ${data.order.status.name.toUpperCase()}", style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                    pw.Text("Statut: ${_translateStatus(data.order.status)}", style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
                     pw.Text("Paiement: ${data.order.isCredit ? 'À Crédit' : 'Comptant'}", style: const pw.TextStyle(fontSize: 9)),
                   ],
                 ),
@@ -315,6 +337,7 @@ class PurchasePdfService {
                 pw.Text("BON DE COMMANDE", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: accent)),
                 pw.Text('Réf: ${data.order.reference}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
                 pw.Text('Date: ${DateFormatter.formatDate(data.order.date)}', style: const pw.TextStyle(fontSize: 9)),
+                pw.Text('Statut: ${_translateStatus(data.order.status)}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
               ],
             ),
           ],
@@ -356,6 +379,7 @@ class PurchasePdfService {
               children: [
                 pw.Text('N° ${data.order.reference}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
                 pw.Text('Date: ${DateFormatter.formatPremium(data.order.date)}', style: const pw.TextStyle(fontSize: 9)),
+                pw.Text('Statut: ${_translateStatus(data.order.status)}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
               ],
             ),
           ],
@@ -383,6 +407,12 @@ class PurchasePdfService {
               children: [
                 pw.Text("FOURNISSEUR", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: accent)),
                 pw.SizedBox(height: 4),
+                if (data.supplier.logoPath != null && File(data.supplier.logoPath!).existsSync())
+                  pw.Container(
+                    height: 30,
+                    margin: const pw.EdgeInsets.only(bottom: 6),
+                    child: pw.Image(pw.MemoryImage(File(data.supplier.logoPath!).readAsBytesSync())),
+                  ),
                 pw.Text(data.supplier.name.toUpperCase(), style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
                 if (data.supplier.phone != null) pw.Text('Tél: ${data.supplier.phone}', style: const pw.TextStyle(fontSize: 9)),
                 if (data.supplier.email != null) pw.Text('Email: ${data.supplier.email}', style: const pw.TextStyle(fontSize: 9)),

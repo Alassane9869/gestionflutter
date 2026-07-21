@@ -124,6 +124,8 @@ class SchemaHealingService {
       'phone': 'TEXT',
       'address': 'TEXT',
       'birth_date': 'TEXT',
+      'hire_date': 'TEXT',
+      'nationality': 'TEXT',
       'permissions': 'TEXT NOT NULL DEFAULT "{}"',
       'updated_at': 'INTEGER NOT NULL DEFAULT 0',
       'is_deleted': 'INTEGER NOT NULL DEFAULT 0',
@@ -150,7 +152,18 @@ class SchemaHealingService {
       'is_deleted': 'INTEGER NOT NULL DEFAULT 0',
     });
 
+    // 7. Table FOURNISSEURS
+    await ensureTableStructure('suppliers', {
+      'logo_path': 'TEXT',
+    });
+
     // Ensure all cloud sync tables have their required syncing column and triggers
+    
+    // Table EMPLOYEE_CONTRACTS
+    await ensureTableStructure('employee_contracts', {
+      'school_name': 'TEXT',
+    });
+
     final cloudSyncTables = [
       'users',
       'financial_accounts',

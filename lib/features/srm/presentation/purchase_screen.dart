@@ -335,98 +335,119 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> with SingleTick
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(16),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Text("RÈGLEMENT", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900)),
-                      const SizedBox(height: 12),
+                      Text("INFORMATIONS GÉNÉRALES", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade500, letterSpacing: 0.5)),
+                      const SizedBox(height: 16),
                       
                       suppliersAsync.when(
-                        data: (suppliers) => EnterpriseWidgets.buildPremiumDropdown<Supplier>(
+                        data: (suppliers) => _buildSleekDropdown<Supplier>(
                           label: "FOURNISSEUR",
                           value: _selectedSupplier,
-                          icon: FluentIcons.building_20_regular,
                           items: suppliers,
                           itemLabel: (s) => s.name,
                           onChanged: (s) => setState(() => _selectedSupplier = s),
+                          isDark: isDark,
                         ),
                         loading: () => const LinearProgressIndicator(),
                         error: (_, __) => const Text("Erreur"),
                       ),
-                      const SizedBox(height: 8),
-                      EnterpriseWidgets.buildPremiumTextField(
-                        context, ctrl: _referenceCtrl, label: "RÉF", icon: FluentIcons.receipt_20_regular, hint: "BL-001",
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildSleekField(
+                              label: "RÉFÉRENCE",
+                              ctrl: _referenceCtrl,
+                              hint: "BL-001",
+                              isDark: isDark,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildSleekField(
+                              label: "DATE D'ACHAT",
+                              ctrl: TextEditingController(text: DateFormatter.formatLongDate(_selectedDate)),
+                              isDark: isDark,
+                              readOnly: true,
+                              onTap: () async {
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: _selectedDate,
+                                  firstDate: DateTime(DateTime.now().year - 2),
+                                  lastDate: DateTime.now(),
+                                );
+                                if (picked != null) setState(() => _selectedDate = picked);
+                              },
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 8),
-                      EnterpriseWidgets.buildPremiumTextField(
-                        context,
-                        ctrl: TextEditingController(text: DateFormatter.formatLongDate(_selectedDate)),
-                        label: "DATE D'ACHAT",
-                        icon: FluentIcons.calendar_20_regular,
-                        readOnly: true,
-                        onTap: () async {
-                          final picked = await showDatePicker(
-                            context: context,
-                            initialDate: _selectedDate,
-                            firstDate: DateTime(DateTime.now().year - 2),
-                            lastDate: DateTime.now(),
-                            initialEntryMode: DatePickerEntryMode.input,
-                          );
-                          if (picked != null) setState(() => _selectedDate = picked);
-                        },
-                      ),
-
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        child: Divider(),
-                      ),
+                      const SizedBox(height: 24),
+                      Text("RÈGLEMENT & FINANCES", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade500, letterSpacing: 0.5)),
+                      const SizedBox(height: 16),
 
                       Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         decoration: BoxDecoration(
-                          color: isDark ? Colors.black26 : Colors.grey.shade50,
+                          color: isDark ? Colors.white.withValues(alpha: 0.02) : Colors.grey.shade50,
                           borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade200),
                         ),
-                        child: SwitchListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                          dense: true,
-                          title: const Text("À crédit", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                          value: _isCredit,
-                          onChanged: (v) => setState(() => _isCredit = v),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text("Achat à crédit", style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                            Switch(
+                              value: _isCredit,
+                              onChanged: (v) => setState(() => _isCredit = v),
+                              activeThumbColor: theme.colorScheme.primary,
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      accountsAsync.when(
-                        data: (accounts) => EnterpriseWidgets.buildPremiumDropdown<String>(
-                          label: "COMPTE",
-                          value: _selectedAccountId,
-                          icon: FluentIcons.building_bank_20_regular,
-                          items: accounts.map((a) => a.id).toList(),
-                          itemLabel: (id) => accounts.firstWhere((a) => a.id == id).name,
-                          onChanged: (v) => setState(() => _selectedAccountId = v),
+                      const SizedBox(height: 12),
+                      
+                      if (!_isCredit) ...[
+                        accountsAsync.when(
+                          data: (accounts) => _buildSleekDropdown<String>(
+                            label: "COMPTE DE PAIEMENT",
+                            value: _selectedAccountId,
+                            items: accounts.map((a) => a.id).toList(),
+                            itemLabel: (id) => accounts.firstWhere((a) => a.id == id).name,
+                            onChanged: (v) => setState(() => _selectedAccountId = v),
+                            isDark: isDark,
+                          ),
+                          loading: () => const SizedBox(),
+                          error: (_, __) => const SizedBox(),
                         ),
-                        loading: () => const SizedBox(),
-                        error: (_, __) => const SizedBox(),
-                      ),
-                      const SizedBox(height: 8),
-                      _buildPremiumFinancialInput("Acompte", _paidAmountCtrl, FluentIcons.money_hand_20_regular),
-
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        child: Divider(),
-                      ),
+                        const SizedBox(height: 12),
+                      ],
+                      
+                      if (_isCredit) ...[
+                        _buildSleekField(
+                          label: "ACOMPTE VERSÉ",
+                          ctrl: _paidAmountCtrl,
+                          hint: "0",
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          isDark: isDark,
+                          onChanged: (_) => setState(() {}),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
 
                       Row(
                         children: [
-                          Expanded(child: _buildPremiumFinancialInput("Remise", _discountCtrl, FluentIcons.tag_20_regular)),
-                          const SizedBox(width: 8),
-                          Expanded(child: _buildPremiumFinancialInput("Taxes", _taxCtrl, FluentIcons.receipt_20_regular)),
+                          Expanded(child: _buildSleekField(label: "REMISE", ctrl: _discountCtrl, isDark: isDark, hint: "0", keyboardType: const TextInputType.numberWithOptions(decimal: true), onChanged: (_) => setState(() {}))),
+                          const SizedBox(width: 12),
+                          Expanded(child: _buildSleekField(label: "TAXES", ctrl: _taxCtrl, isDark: isDark, hint: "0", keyboardType: const TextInputType.numberWithOptions(decimal: true), onChanged: (_) => setState(() {}))),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      _buildPremiumFinancialInput("Transport", _shippingCtrl, FluentIcons.vehicle_truck_profile_20_regular),
-                      const SizedBox(height: 8),
-                      EnterpriseWidgets.buildPremiumTextField(
-                        context, ctrl: _notesCtrl, label: "Notes / Commentaires", icon: FluentIcons.text_description_20_regular, hint: "Détails supplémentaires...",
-                      ),
+                      const SizedBox(height: 12),
+                      _buildSleekField(label: "FRAIS TRANSPORT", ctrl: _shippingCtrl, isDark: isDark, hint: "0", keyboardType: const TextInputType.numberWithOptions(decimal: true), onChanged: (_) => setState(() {})),
+                      const SizedBox(height: 12),
+                      _buildSleekField(label: "NOTES", ctrl: _notesCtrl, isDark: isDark, hint: "Commentaires..."),
+                      const SizedBox(height: 20),
                     ],
                   ),
                 ),
@@ -627,11 +648,112 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> with SingleTick
     );
   }
 
-  Widget _buildPremiumFinancialInput(String label, TextEditingController ctrl, IconData icon) {
-    return EnterpriseWidgets.buildPremiumTextField(
-      context, ctrl: ctrl, label: label, icon: icon, hint: "0",
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      onChanged: (_) => setState(() {}),
+  Widget _buildSleekField({
+    required String label,
+    TextEditingController? ctrl,
+    String? hint,
+    TextInputType? keyboardType,
+    bool readOnly = false,
+    VoidCallback? onTap,
+    void Function(String)? onChanged,
+    required bool isDark,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+          ),
+        ),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: 40,
+          child: TextFormField(
+            controller: ctrl,
+            keyboardType: keyboardType,
+            readOnly: readOnly,
+            onTap: onTap,
+            onChanged: onChanged,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13, fontWeight: FontWeight.w400),
+              filled: true,
+              fillColor: isDark ? Colors.white.withValues(alpha: 0.02) : Colors.white,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade300),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade300),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSleekDropdown<T>({
+    required String label,
+    required T? value,
+    required List<T> items,
+    required String Function(T) itemLabel,
+    required void Function(T?) onChanged,
+    required bool isDark,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          height: 40,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: isDark ? Colors.white.withValues(alpha: 0.02) : Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade300),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<T>(
+              value: value,
+              isExpanded: true,
+              icon: Icon(FluentIcons.chevron_down_20_regular, size: 16, color: Colors.grey.shade500),
+              dropdownColor: isDark ? const Color(0xFF2D3039) : Colors.white,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+              onChanged: onChanged,
+              items: items.map((item) {
+                return DropdownMenuItem<T>(
+                  value: item,
+                  child: Text(itemLabel(item)),
+                );
+              }).toList(),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -647,16 +769,9 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> with SingleTick
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  theme.colorScheme.primary.withValues(alpha: 0.15),
-                  theme.colorScheme.primary.withValues(alpha: 0.05),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.2)),
+              color: isDark ? const Color(0xFF1E1E24) : Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade200),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -664,16 +779,16 @@ class _PurchaseScreenState extends ConsumerState<PurchaseScreen> with SingleTick
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text("TOTAL À RÉGLER", style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.grey, letterSpacing: 1)),
-                    const SizedBox(height: 4),
-                    Text(ref.fmt(total), style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: theme.colorScheme.primary, letterSpacing: -0.5)),
+                    Text("TOTAL À RÉGLER", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey.shade500, letterSpacing: 0.5)),
+                    const SizedBox(height: 2),
+                    Text(ref.fmt(total), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
                   ],
                 ),
                 if (_items.isNotEmpty)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(color: theme.colorScheme.primary, borderRadius: BorderRadius.circular(8)),
-                    child: Text("${_items.length}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),
+                    decoration: BoxDecoration(color: theme.colorScheme.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+                    child: Text("${_items.length} art.", style: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.bold, fontSize: 13)),
                   ),
               ],
             ),

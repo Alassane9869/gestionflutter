@@ -10,6 +10,7 @@ import 'package:danaya_plus/features/srm/application/purchase_pdf_service.dart';
 import 'package:danaya_plus/features/settings/providers/shop_settings_provider.dart';
 import 'package:danaya_plus/features/inventory/providers/product_providers.dart';
 import 'package:danaya_plus/core/extensions/ref_extensions.dart';
+import 'package:danaya_plus/features/srm/presentation/widgets/purchase_doc_preview_dialog.dart';
 
 class PurchaseDetailDialog extends ConsumerWidget {
   final PurchaseOrder order;
@@ -138,7 +139,7 @@ class PurchaseDetailDialog extends ConsumerWidget {
                           final products = ref.read(productListProvider).value;
                           
                           if (settings != null && items != null && products != null) {
-                            await PurchasePdfService.generateAndPrint(PurchasePdfData(
+                            final pdfData = PurchasePdfData(
                               order: order,
                               supplier: supplier,
                               settings: settings,
@@ -150,11 +151,16 @@ class PurchaseDetailDialog extends ConsumerWidget {
                                   unitCost: i.unitPrice,
                                 );
                               }).toList(),
-                            ));
+                            );
+                            
+                            showDialog(
+                              context: context,
+                              builder: (_) => PurchaseDocPreviewDialog(pdfData: pdfData),
+                            );
                           }
                         },
-                        icon: const Icon(FluentIcons.print_16_regular, size: 14),
-                        label: const Text("IMPRIMER", style: TextStyle(fontSize: 11)),
+                        icon: const Icon(FluentIcons.document_pdf_20_regular, size: 14),
+                        label: const Text("APERÇU & ENVOI", style: TextStyle(fontSize: 11)),
                         style: FilledButton.styleFrom(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           minimumSize: const Size(0, 32),
@@ -172,7 +178,6 @@ class PurchaseDetailDialog extends ConsumerWidget {
       ),
     );
   }
-
 
   Widget _buildMiniMetric(String label, String value, Color color) {
     return Expanded(

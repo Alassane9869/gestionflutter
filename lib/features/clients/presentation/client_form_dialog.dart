@@ -5,12 +5,16 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:danaya_plus/features/clients/domain/models/client.dart';
 import 'package:danaya_plus/features/clients/providers/client_providers.dart';
 import 'package:danaya_plus/core/widgets/enterprise_widgets.dart';
+import 'package:danaya_plus/core/widgets/address_autocomplete_field.dart';
 import 'package:danaya_plus/core/utils/date_formatter.dart';
+import 'package:danaya_plus/features/assistant/application/assistant_service.dart';
 
 class ClientFormDialog extends ConsumerStatefulWidget {
   final Client? client;
+  final String? initialName;
+  final String? initialPhone;
 
-  const ClientFormDialog({super.key, this.client});
+  const ClientFormDialog({super.key, this.client, this.initialName, this.initialPhone});
 
   @override
   ConsumerState<ClientFormDialog> createState() => _ClientFormDialogState();
@@ -32,13 +36,21 @@ class _ClientFormDialogState extends ConsumerState<ClientFormDialog> {
   void initState() {
     super.initState();
     final c = widget.client;
-    _nameController = TextEditingController(text: c?.name ?? "");
-    _phoneController = TextEditingController(text: c?.phone ?? "");
+    _nameController = TextEditingController(text: c?.name ?? widget.initialName ?? "");
+    _phoneController = TextEditingController(text: c?.phone ?? widget.initialPhone ?? "");
     _emailController = TextEditingController(text: c?.email ?? "");
     _addressController = TextEditingController(text: c?.address ?? "");
     _maxCreditController = TextEditingController(text: c?.maxCredit.toStringAsFixed(0) ?? "50000");
     _loyaltyPointsController = TextEditingController(text: c?.loyaltyPoints.toString() ?? "0");
     _birthDate = c?.birthDate;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(assistantProvider.notifier).setActiveDialog(
+          widget.client != null ? 'Modification Client' : 'Création Client'
+        );
+      }
+    });
   }
 
   @override
@@ -49,6 +61,9 @@ class _ClientFormDialogState extends ConsumerState<ClientFormDialog> {
     _addressController.dispose();
     _maxCreditController.dispose();
     _loyaltyPointsController.dispose();
+    try {
+      ref.read(assistantProvider.notifier).setActiveDialog(null);
+    } catch (_) {}
     super.dispose();
   }
 
@@ -276,13 +291,10 @@ class _ClientFormDialogState extends ConsumerState<ClientFormDialog> {
                 ],
               ),
               const SizedBox(height: 12),
-              EnterpriseWidgets.buildPremiumTextField(
-                context,
-                ctrl: _addressController,
+              AddressAutocompleteField(
+                controller: _addressController,
                 label: "ADRESSE DE LIVRAISON / PHYSIQUE",
                 hint: "Ex: Badalabougou, Rue 123, Bamako",
-                icon: FluentIcons.location_24_regular,
-                maxLines: 1, // Compact layout
               ),
               const SizedBox(height: 14),
 

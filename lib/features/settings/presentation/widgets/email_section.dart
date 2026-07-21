@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
+import '../../../../core/services/email_templates.dart';
 import '../../providers/shop_settings_provider.dart';
 import '../../../inventory/presentation/widgets/dashboard_widgets.dart';
 import '../../../../core/widgets/premium_settings_widgets.dart';
@@ -117,27 +119,29 @@ class _EmailSettingsSectionState extends State<EmailSettingsSection> {
         
         return Column(
           children: [
-            // ═══════════════════════════════════════
+            // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
             // SECTION 1 : CONNEXION SMTP + DESTINATAIRE
-            // ═══════════════════════════════════════
+            // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
             if (widget.showSmtp) ...[
               _buildSmtpAndRecipientSection(c, isNarrow),
               const SizedBox(height: 24),
             ],
 
-            // ═══════════════════════════════════════
+            // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
             // SECTION 2 : AUTOMATISATION & RAPPORTS
-            // ═══════════════════════════════════════
+            // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
             if (widget.showReports) ...[
               _buildAutomationSection(c, isNarrow),
               const SizedBox(height: 24),
             ],
 
-            // ═══════════════════════════════════════
+            // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
             // SECTION 3 : ENGAGEMENT & MARKETING
-            // ═══════════════════════════════════════
+            // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
             if (widget.showMarketing) ...[
               _buildMarketingSection(c, isNarrow),
+              const SizedBox(height: 24),
+              _buildTemplateGallerySection(c, isNarrow),
             ],
           ],
         ).animate().fadeIn(duration: 400.ms);
@@ -145,9 +149,9 @@ class _EmailSettingsSectionState extends State<EmailSettingsSection> {
     );
   }
 
-  // ═══════════════════════════════════════════════════
+  // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
   // SECTION 1 : SMTP + DESTINATAIRE
-  // ═══════════════════════════════════════════════════
+  // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
 
   Widget _buildSmtpAndRecipientSection(DashColors c, bool isNarrow) {
     final smtpContent = PremiumSettingsWidgets.buildCard(
@@ -155,7 +159,7 @@ class _EmailSettingsSectionState extends State<EmailSettingsSection> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // En-tête SMTP Simple & Pro
+          // En-t├¬te SMTP Simple & Pro
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -178,28 +182,28 @@ class _EmailSettingsSectionState extends State<EmailSettingsSection> {
                 ),
                 PremiumSettingsWidgets.buildStatusDot(
                   active: widget.smtpUserCtrl.text.isNotEmpty && widget.smtpPasswordCtrl.text.isNotEmpty,
-                  activeLabel: "CONFIGURÉ",
+                  activeLabel: "CONFIGUR├ë",
                   inactiveLabel: "INCOMPLET",
                 ),
                 const SizedBox(width: 8),
                 IconButton(
                   onPressed: () => _showSmtpHelp(context, c),
                   icon: Icon(FluentIcons.question_circle_24_regular, color: c.amber, size: 24),
-                  tooltip: "Aide à la configuration",
+                  tooltip: "Aide ├á la configuration",
                 ),
               ],
             ),
           ),
           const SizedBox(height: 24),
 
-          // Ligne 1 : Hôte + Port
+          // Ligne 1 : H├┤te + Port
           Row(
             children: [
               Expanded(
                 flex: 7,
                 child: PremiumSettingsWidgets.buildCompactField(
                   context,
-                   label: "Serveur hôte", hint: "smtp.gmail.com",
+                   label: "Serveur h├┤te", hint: "smtp.gmail.com",
                   icon: FluentIcons.globe_16_regular, controller: widget.smtpHostCtrl,
                   color: c.amber, onChanged: widget.onSaveDebounced,
                 ),
@@ -224,7 +228,7 @@ class _EmailSettingsSectionState extends State<EmailSettingsSection> {
               Expanded(
                 child: PremiumSettingsWidgets.buildCompactField(
                   context,
-                   label: "COMPTE D'EXPÉDITION", hint: "votre-nom@gmail.com",
+                   label: "COMPTE D'EXP├ëDITION", hint: "votre-nom@gmail.com",
                   icon: FluentIcons.person_16_regular, controller: widget.smtpUserCtrl,
                   color: c.amber, onChanged: widget.onSaveDebounced,
                 ),
@@ -236,7 +240,7 @@ class _EmailSettingsSectionState extends State<EmailSettingsSection> {
                   children: [
                     PremiumSettingsWidgets.buildCompactField(
                       context,
-                       label: "PASS D'APPLICATION", hint: "•••• •••• •••• ••••",
+                       label: "PASS D'APPLICATION", hint: "ÔÇóÔÇóÔÇóÔÇó ÔÇóÔÇóÔÇóÔÇó ÔÇóÔÇóÔÇóÔÇó ÔÇóÔÇóÔÇóÔÇó",
                       icon: FluentIcons.key_16_regular, controller: widget.smtpPasswordCtrl,
                       color: c.amber, onChanged: widget.onSaveDebounced,
                       isPassword: true, showPassword: _showPassword,
@@ -301,7 +305,7 @@ class _EmailSettingsSectionState extends State<EmailSettingsSection> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text("DESTINATAIRE UNIQUE", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: c.textPrimary, letterSpacing: 1.0)),
-                    Text("Point de réception des flux", style: TextStyle(fontSize: 13, color: c.textMuted, fontWeight: FontWeight.w600)),
+                    Text("Point de r├®ception des flux", style: TextStyle(fontSize: 13, color: c.textMuted, fontWeight: FontWeight.w600)),
                   ],
                 ),
               ),
@@ -311,7 +315,7 @@ class _EmailSettingsSectionState extends State<EmailSettingsSection> {
 
           PremiumSettingsWidgets.buildCompactField(
                   context,
-             label: "Email du magasin / gérant",
+             label: "Email du magasin / g├®rant",
             hint: "admin@votre-boutique.com",
             icon: FluentIcons.send_16_regular, controller: widget.backupEmailRecipientCtrl,
             color: c.rose, onChanged: widget.onSaveDebounced,
@@ -322,7 +326,7 @@ class _EmailSettingsSectionState extends State<EmailSettingsSection> {
             context,
             
             title: "Alerte de rupture de stock",
-            subtitle: "Email immédiat si un produit passe sous le seuil d'alerte",
+            subtitle: "Email imm├®diat si un produit passe sous le seuil d'alerte",
             value: widget.stockAlertsEnabled,
             onChanged: widget.onStockAlertsEnabledChanged,
             activeThumbColor: c.rose,
@@ -333,7 +337,7 @@ class _EmailSettingsSectionState extends State<EmailSettingsSection> {
           // Info box
 PremiumSettingsWidgets.buildInfoBox(
             context,
-            text: "Cet email recevra les sauvegardes, rapports et alertes système.",
+            text: "Cet email recevra les sauvegardes, rapports et alertes syst├¿me.",
             color: c.rose,
             icon: FluentIcons.info_16_regular,
           ),
@@ -379,13 +383,13 @@ PremiumSettingsWidgets.buildInfoBox(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  "Gmail et d'autres fournisseurs exigent un « mot de passe d'application » au lieu de votre mot de passe habituel.",
+                  "Gmail et d'autres fournisseurs exigent un ┬½ mot de passe d'application ┬╗ au lieu de votre mot de passe habituel.",
                   style: TextStyle(fontSize: 14, color: c.textPrimary, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 16),
-                _buildHelpStep(c, "1", "Activez la vérification en 2 étapes sur votre compte email."),
-                _buildHelpStep(c, "2", "Générez un mot de passe d'application dédié à Danaya+."),
-                _buildHelpStep(c, "3", "Copiez-le (16 caractères) dans le champ Mot de passe ci-contre."),
+                _buildHelpStep(c, "1", "Activez la v├®rification en 2 ├®tapes sur votre compte email."),
+                _buildHelpStep(c, "2", "G├®n├®rez un mot de passe d'application d├®di├® ├á Danaya+."),
+                _buildHelpStep(c, "3", "Copiez-le (16 caract├¿res) dans le champ Mot de passe ci-contre."),
                 const SizedBox(height: 20),
                 Text("LIENS DIRECTS VERS VOTRE BOUTIQUE :", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: c.textMuted)),
                 const SizedBox(height: 12),
@@ -445,9 +449,9 @@ PremiumSettingsWidgets.buildInfoBox(
     );
   }
 
-  // ═══════════════════════════════════════════════════
+  // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
   // SECTION 2 : AUTOMATISATION
-  // ═══════════════════════════════════════════════════
+  // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
 
   Widget _buildAutomationSection(DashColors c, bool isNarrow) {
     final backupCard = PremiumSettingsWidgets.buildCard(context, 
@@ -464,7 +468,7 @@ PremiumSettingsWidgets.buildInfoBox(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text("SAUVEGARDE CLOUD", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: c.textPrimary, letterSpacing: 0.5)),
-                    Text("Archive GZ chiffrée de votre base de données", style: TextStyle(fontSize: 12, color: c.textMuted)),
+                    Text("Archive GZ chiffr├®e de votre base de donn├®es", style: TextStyle(fontSize: 12, color: c.textMuted)),
                   ],
                 ),
               ),
@@ -476,7 +480,7 @@ PremiumSettingsWidgets.buildInfoBox(
             context,
             
             title: "Sauvegarde automatique par email",
-            subtitle: "Envoi programmé de votre base de données",
+            subtitle: "Envoi programm├® de votre base de donn├®es",
             value: widget.emailBackupEnabled,
             onChanged: widget.onEmailBackupEnabledChanged,
             activeThumbColor: c.blue,
@@ -489,7 +493,7 @@ PremiumSettingsWidgets.buildInfoBox(
               children: [
                 Expanded(
                   child: PremiumSettingsWidgets.buildCompactDropdown<EmailBackupFrequency>(context, 
-                     label: "Fréquence", value: widget.emailBackupFrequency, color: c.blue,
+                     label: "Fr├®quence", value: widget.emailBackupFrequency, color: c.blue,
                     items: [
                       DropdownMenuItem(value: EmailBackupFrequency.daily, child: Text("Quotidien", style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600))),
                       DropdownMenuItem(value: EmailBackupFrequency.weekly, child: Text("Hebdomadaire", style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600))),
@@ -559,7 +563,7 @@ PremiumSettingsWidgets.buildInfoBox(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text("RAPPORTS FINANCIERS", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: c.textPrimary, letterSpacing: 0.5)),
-                    Text("Envoi automatique de rapports PDF détaillés", style: TextStyle(fontSize: 12, color: c.textMuted)),
+                    Text("Envoi automatique de rapports PDF d├®taill├®s", style: TextStyle(fontSize: 12, color: c.textMuted)),
                   ],
                 ),
               ),
@@ -571,7 +575,7 @@ PremiumSettingsWidgets.buildInfoBox(
             context,
             
             title: "Rapports financiers automatiques",
-            subtitle: "Envoi périodique du bilan des ventes en PDF",
+            subtitle: "Envoi p├®riodique du bilan des ventes en PDF",
             value: widget.reportEmailEnabled,
             onChanged: widget.onReportEmailEnabledChanged,
             activeThumbColor: c.cyan,
@@ -584,7 +588,7 @@ PremiumSettingsWidgets.buildInfoBox(
               children: [
                 Expanded(
                   child: PremiumSettingsWidgets.buildCompactDropdown<EmailBackupFrequency>(context, 
-                     label: "Fréquence", value: widget.reportEmailFrequency, color: c.cyan,
+                     label: "Fr├®quence", value: widget.reportEmailFrequency, color: c.cyan,
                     items: [
                       DropdownMenuItem(value: EmailBackupFrequency.daily, child: Text("Quotidien", style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600))),
                       DropdownMenuItem(value: EmailBackupFrequency.weekly, child: Text("Hebdomadaire", style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600))),
@@ -644,9 +648,9 @@ PremiumSettingsWidgets.buildInfoBox(
     );
   }
 
-  // ═══════════════════════════════════════════════════
+  // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
   // SECTION 3 : MARKETING
-  // ═══════════════════════════════════════════════════
+  // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
 
   Widget _buildMarketingSection(DashColors c, bool isNarrow) {
     return PremiumSettingsWidgets.buildCard(context, 
@@ -663,7 +667,7 @@ PremiumSettingsWidgets.buildInfoBox(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text("MARKETING & CRM", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: c.textPrimary, letterSpacing: 0.5)),
-                    Text("Fidélisation et relance automatique des clients", style: TextStyle(fontSize: 12, color: c.textMuted)),
+                    Text("Fid├®lisation et relance automatique des clients", style: TextStyle(fontSize: 12, color: c.textMuted)),
                   ],
                 ),
               ),
@@ -675,7 +679,7 @@ PremiumSettingsWidgets.buildInfoBox(
             context,
             
             title: "Newsletters magasin",
-            subtitle: "Nouveautés envoyées automatiquement à vos clients ayant un email",
+            subtitle: "Nouveaut├®s envoy├®es automatiquement ├á vos clients ayant un email",
             value: widget.marketingEmailsEnabled,
             onChanged: widget.onMarketingEmailsEnabledChanged,
             activeThumbColor: c.violet,
@@ -687,8 +691,8 @@ PremiumSettingsWidgets.buildInfoBox(
             PremiumSettingsWidgets.buildCompactSwitch(
             context,
               
-              title: "Relance inactivité",
-              subtitle: "Envoyer un email aux clients inactifs pour les réengager",
+              title: "Relance inactivit├®",
+              subtitle: "Envoyer un email aux clients inactifs pour les r├®engager",
               value: widget.inactivityReminderEnabled,
               onChanged: widget.onInactivityReminderEnabledChanged,
               activeThumbColor: c.violet,
@@ -697,7 +701,7 @@ PremiumSettingsWidgets.buildInfoBox(
             if (widget.inactivityReminderEnabled) ...[
               const SizedBox(height: 10),
               PremiumSettingsWidgets.buildCompactDropdown<int>(context, 
-                 label: "Déclencher l'email après", value: widget.inactivityDaysThreshold, color: c.violet,
+                 label: "D├®clencher l'email apr├¿s", value: widget.inactivityDaysThreshold, color: c.violet,
                 items: [7, 14, 30, 60, 90].map((d) => DropdownMenuItem(value: d, child: Text("$d jours sans achat", style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600)))).toList(),
                 onChanged: (v) => widget.onInactivityDaysThresholdChanged(v!),
               ),
@@ -730,9 +734,9 @@ PremiumSettingsWidgets.buildInfoBox(
     );
   }
 
-  // ═══════════════════════════════════════════════════
-  // MODE COMPACT (utilisé dans d'autres sections)
-  // ═══════════════════════════════════════════════════
+  // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+  // MODE COMPACT (utilis├® dans d'autres sections)
+  // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
 
   Widget _buildCompactSmtpAndSchedule(DashColors c) {
     return Container(
@@ -765,7 +769,7 @@ PremiumSettingsWidgets.buildInfoBox(
               ),
               const SizedBox(height: 20),
               PremiumSettingsWidgets.buildCompactField(
-                  context, label: "SERVEUR HÔTE", hint: "smtp.gmail.com", icon: FluentIcons.desktop_20_regular, controller: widget.smtpHostCtrl, color: c.amber, onChanged: widget.onSaveDebounced),
+                  context, label: "SERVEUR H├öTE", hint: "smtp.gmail.com", icon: FluentIcons.desktop_20_regular, controller: widget.smtpHostCtrl, color: c.amber, onChanged: widget.onSaveDebounced),
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -773,7 +777,7 @@ PremiumSettingsWidgets.buildInfoBox(
                   context, label: "COMPTE", hint: "user@mail.com", icon: FluentIcons.person_20_regular, controller: widget.smtpUserCtrl, color: c.amber, onChanged: widget.onSaveDebounced)),
                   const SizedBox(width: 12),
                   Expanded(child: PremiumSettingsWidgets.buildCompactField(
-                  context, label: "PASS APP", hint: "••••", icon: FluentIcons.key_20_regular, controller: widget.smtpPasswordCtrl, color: c.amber, isPassword: true, onChanged: widget.onSaveDebounced)),
+                  context, label: "PASS APP", hint: "ÔÇóÔÇóÔÇóÔÇó", icon: FluentIcons.key_20_regular, controller: widget.smtpPasswordCtrl, color: c.amber, isPassword: true, onChanged: widget.onSaveDebounced)),
                 ],
               ),
               const Padding(
@@ -855,7 +859,7 @@ PremiumSettingsWidgets.buildInfoBox(
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              widget.cloudBackupPath ?? "Sélectionner un dossier de synchronisation",
+              widget.cloudBackupPath ?? "S├®lectionner un dossier de synchronisation",
               style: TextStyle(fontSize: 13, color: widget.cloudBackupPath != null ? c.textPrimary : c.textMuted, fontWeight: FontWeight.w700, overflow: TextOverflow.ellipsis),
             ),
           ),
@@ -875,11 +879,146 @@ PremiumSettingsWidgets.buildInfoBox(
       ),
     );
   }
+
+  // ═══════════════════════════════════════════════════
+  // SECTION 4 : GALERIE DE MODÈLES
+  // ═══════════════════════════════════════════════════
+  Widget _buildTemplateGallerySection(DashColors c, bool isNarrow) {
+    return PremiumSettingsWidgets.buildCard(context,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              PremiumSettingsWidgets.buildIconBadge(icon: FluentIcons.color_20_filled, color: c.amber),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("MODÈLES D'EMAILS", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: c.textPrimary, letterSpacing: 0.5)),
+                    Text("Choisissez le design de vos communications", style: TextStyle(fontSize: 12, color: c.textMuted)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 140,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: EmailTemplates.catalog.length,
+              separatorBuilder: (ctx, i) => const SizedBox(width: 12),
+              itemBuilder: (context, index) {
+                final info = EmailTemplates.catalog[index];
+                return _buildTemplateCard(c, info);
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTemplateCard(DashColors c, Map<String, String> info) {
+    final isSelected = info['id'] == 'classic'; // For now just preview
+    return GestureDetector(
+      onTap: () => _showTemplatePreviewDialog(c, info),
+      child: Container(
+        width: 160,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected ? c.amber.withValues(alpha: 0.1) : c.surfaceElev,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: isSelected ? c.amber : c.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(color: c.surface, borderRadius: BorderRadius.circular(6)),
+              child: Text(info['category'] ?? '', style: TextStyle(fontSize: 10, color: c.textSecondary, fontWeight: FontWeight.w800)),
+            ),
+            const Spacer(),
+            Text(info['name'] ?? '', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: c.textPrimary)),
+            const SizedBox(height: 4),
+            Text(info['desc'] ?? '', maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, color: c.textMuted, height: 1.2)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showTemplatePreviewDialog(DashColors c, Map<String, String> info) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          width: 800, height: 600,
+          decoration: BoxDecoration(color: c.bg, borderRadius: BorderRadius.circular(20), border: Border.all(color: c.border)),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Icon(FluentIcons.eye_24_regular, color: c.textPrimary),
+                    const SizedBox(width: 12),
+                    Text("Aperçu : ${info['name']}", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: c.textPrimary)),
+                    const Spacer(),
+                    IconButton(icon: Icon(FluentIcons.dismiss_24_regular, color: c.textPrimary), onPressed: () => Navigator.pop(context)),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: _buildFullTemplatePreview(c, info),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFullTemplatePreview(DashColors c, Map<String, String> info) {
+    const shopName = "MA BOUTIQUE PRO";
+    const subject = "Confirmation de votre commande";
+    const body = "Cher client,<br><br>Nous avons bien reçu votre commande et nous la traitons avec le plus grand soin. Vous recevrez une notification dès qu'elle sera prête.<br><br>Merci pour votre confiance !";
+
+    final htmlBody = EmailTemplates.buildHtml(
+      info['id'] ?? 'classic',
+      subject: subject,
+      body: body,
+      shopName: shopName,
+    );
+
+    return Center(
+      child: Container(
+        width: 600,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, spreadRadius: 2)],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: HtmlWidget(htmlBody),
+        ),
+      ),
+    );
+  }
 }
 
-// ═══════════════════════════════════════════════════
-// COMPOSANTS RÉUTILISABLES
-// ═══════════════════════════════════════════════════
+// ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+// COMPOSANTS R├ëUTILISABLES
+// ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
 
 class _ProviderLink extends StatelessWidget {
   final String label;
